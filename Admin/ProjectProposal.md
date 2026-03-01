@@ -5,6 +5,8 @@
 - Goh Yi Shen, 1006852
 - Joshua Chua Tze Ern, 1006627
 - Chew Ming Hui, 1006892
+- Anika Ajay Handigol, 1006952
+- Jun Jin, 1004435
 
 ---
 
@@ -14,7 +16,7 @@ LaTeX is widely used for academic and technical publication workflows, while Mar
 
 However, converting LaTeX into Markdown manually is time-consuming and error-prone, especially for complex structures (tables, equations, nested lists) and malformed input.
 
-Our project proposes a C-based LaTeX-to-Markdown converter that parses a restricted LaTeX subset and emits structured Markdown output with robust diagnostics for invalid syntax.
+Our project proposes a C-based LaTeX-to-Markdown converter that parses a restricted LaTeX subset and emits structured Markdown output with robust diagnostics for invalid syntax. The system will also process embedded image references and copy referenced image files in binary mode to the output directory.
 
 ---
 
@@ -28,6 +30,7 @@ Our project proposes a C-based LaTeX-to-Markdown converter that parses a restric
 
 - **Primary text output:** `.md` Markdown file
 - **Diagnostics report text output:** `.report.txt` (line/column, error code, recovery action)
+- **Binary image copies** (if applicable)
 
 ---
 
@@ -38,20 +41,5 @@ Our project proposes a C-based LaTeX-to-Markdown converter that parses a restric
 3. LaTeX-to-Markdown emitter
 4. Error handling + recovery system
 5. CLI executable and Makefile
-6. README with build/run instructions
-
----
-
-### 4) Related Work and Differentiation *might remove*
-
-OpenAI’s [Prism](https://openai.com/prism/) is a **LaTeX-native scientific writing workspace** that integrates GPT-5.2 for drafting, revising, collaboration, and publication preparation inside a cloud editor. It is designed to support the LaTeX authoring workflow rather than perform deterministic format conversion between markup languages. 
-
-Our project targets a different problem: **reliable, parser-driven document conversion** between LaTeX and Markdown for portability and documentation reuse. Specifically, we focus on a constrained, formally defined subset and provide:
-
-- deterministic conversion behavior (same input + options => same output),
-- custom lexer/parser implementation in ANSI C,
-- explicit state-machine design,
-- robust diagnostics and recovery for malformed input,
-- CLI-based batch processing suitable for local/CI workflows.
-
-In short, Prism improves writing _within_ a LaTeX workspace, while our tool addresses **structured cross-format translation** and parser robustness, an engineering gap Prism does not primarily aim to solve
+6. File I/O handling for both text and binary data
+7. README with build/run instructions

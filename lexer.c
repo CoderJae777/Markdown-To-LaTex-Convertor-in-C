@@ -3,8 +3,8 @@
 #include "lexer.h"
 
 /*
-    Checks for Meaningful character in markdown
-    Returns 1 if any is identified
+Checks for any MEANINGUL characters in markdown
+Returns 1 if any is identified
 */
 static int is_special(char c)
 {
@@ -24,42 +24,26 @@ static int is_special(char c)
            c == '-';
 }
 
-/*
-    Every time the lexer recognises something meaningful
-    it will append one finished token into the TokenList.
-
-
-    E.g input: # Hi
-
-    Starting state:
-    text_buf = []   len=0   line=1   col=1   tokens.count=0
-
-    i = 0, # is identified, yes its special, nothing to flush,
-    push # into TokenList :
-
-    tokens[0] = { TOK_HASH, "#", line=1, col=1 }
-    count=1
-*/
 static void push(TokenList *list, int type, const char *value, int line, int col)
 {
-    Token *t; /* Pointer to Token */
+    Token *t;
 
+    /*Current MAX_TOKENS is 8192 - approx 50-100 markdown pages already*/
     if (list->count >= MAX_TOKENS)
         return;
 
-    /*
-        Index into the tokens array at position count.
-        Since count is the number already filled, this is always the next empty slot.
-    */
-    t = &list->tokens[list->count]; /*  indexes into the array at the next empty slot. */
-    list->count = list->count + 1;  /* move count forward */
+    /*set pointer t to point to the address of the next empty slot*/
+    t = &list->tokens[list->count];
+    /* move count forward */
+    list->count = list->count + 1;
 
-    /*Stores the token type and where in the source file it came from*/
-    /*Line and column More for error reporting*/
+    /*this part writes everything*/
     t->type = type;
     t->line = line;
     t->col = col;
 
+    /*copy the actual token and store it in also*/
+    /*MAX_TOKEN_VALUE is 256 now */
     strncpy(t->value, value, MAX_TOKEN_VALUE - 1);
 
     /* Forces the last one to be null terminator*/
@@ -67,27 +51,17 @@ static void push(TokenList *list, int type, const char *value, int line, int col
 }
 
 /*
-    Everytime it hits a meaningful character, calls this to emit everything accumulated so far
-    While scanning "Hello **world**":
-
-    read 'H' → buf = ['H'],           len=1
-    read 'e' → buf = ['H','e'],       len=2
-    read 'l' → buf = ['H','e','l'],   len=3
-    read 'l' → buf = [...,'l'],       len=4
-    read 'o' → buf = [...,'o'],       len=5
-
-    hit '*' (special!) → flush_text()
-    buf[5] = '\0'  →  buf = "Hello"
-    push TOK_TEXT "Hello"
-    len = 0        →  buffer reset
-
-    now handle '*' as its own token
-
+Used to emit the buffer that lex() built
+lex() will loop until a meaningful character is found
+Until then, it will continue building the buffer
+flush_text emits (by using the push() function) and resets this buffer
 */
 static void flush_text(TokenList *list, char *buf, int *len, int line, int col)
 {
+    /*Empty buffer*/
     if (*len == 0)
         return;
+    /*Makes sure last element is null terminator*/
     buf[*len] = '\0';
     push(list, TOK_TEXT, buf, line, col);
     *len = 0; /*reset buffer*/
@@ -113,12 +87,11 @@ void lex(const char *src, TokenList *list)
     col = 1;
 
     /*
-        Reads the md source 1 char at a time
-        Starts at position i = 0 and keep going until it hits the null terminator
+    Reads the md source 1 char at a time
+    Starts at position i = 0 and keep going until it hits the null terminator
 
-        if the current char isnt not a markdown symbol, add to text buffer
-        if not, then it will brute force check what is it one by one
-
+    if the current char isnt not a markdown symbol, add to text buffer
+    if not, then it will brute force check what is it one by one
     */
     for (i = 0; src[i] != '\0'; i++)
     {

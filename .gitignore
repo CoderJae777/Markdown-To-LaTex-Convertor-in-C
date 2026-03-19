@@ -1,0 +1,37 @@
+# ── Build output ────────────────────────────────────────────────
+output/
+
+# ── Compiled objects ─────────────────────────────────────────────
+*.o
+*.obj
+*.a
+*.lib
+*.exe
+*.out
+*.dll
+
+# ── Debug / profiling ────────────────────────────────────────────
+*.pdb
+*.ilk
+*.map
+*.dSYM/
+
+# ── Editor & IDE ─────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
+*.sln.docstates
+*.code-workspace
+Thumbs.db
+.DS_Store
+
+# ── Test artifacts ───────────────────────────────────────────────
+*.txt
+!README*.txt
+
+# ── Temporary files ──────────────────────────────────────────────
+*.tmp
+*.bak
+*.swp
+*~

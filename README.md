@@ -55,28 +55,117 @@ gcc -Wall -Werror -ansi -pedantic main.c lexer.c -o output/main.exe
 
 ## Running
 
-Run with the built-in test string:
-
-```bash
-output/main.exe
-```
-
 Run with your own Markdown file:
 
 ```bash
 output/main.exe yourfile.md
 ```
 
-Run with the provided test files:
+Run with the provided test file:
 
 ```bash
-
-// Simple
-output/main.exe Test.md
-
-// Pro Version - Every single markdown
-output/main.exe TestPro.md
-
+output/main.exe test.md
 ```
 
 ---
+
+## Lexing/Tokenisation
+
+### Components
+
+| File | Role |
+| --- | --- |
+| `main.c` → `read_file()` | Reads `.md` file into a single char buffer |
+| `lexer.c` → `lex()` | Scans buffer, fills TokenList via `push()` |
+| `lexer.c` → `print_tokens()` | Writes TokenList to `output/tokens.txt` |
+
+---
+
+### Data Flow
+
+```text
+test.md (on disk)
+      │
+      ▼
+read_file()
+  fopen()
+  fseek() + ftell()  →  measure file size
+  rewind()
+  malloc(size + 3)   →  allocate buffer
+  fread()            →  copy file into buffer
+  buf[size] = '\0'   →  null terminate
+  fclose()
+      │
+      │  char *file_src
+      │  "# Hi\nSome **bold**\n"
+      ▼
+lex(file_src, &tokens)
+  for each character src[i]:
+  │
+  ├── is_special(c)?
+  │
+  │   NO  →  append c to text_buf
+  │           continue to next char
+  │
+  │   YES →  flush_text()
+  │            if text_buf not empty:
+  │              push(TOK_TEXT, text_buf)
+  │              reset text_buf
+  │
+  │          then match c:
+  │            '#'   →  push(TOK_HASH)
+  │            '**'  →  push(TOK_DOUBLE_STAR)
+  │            '*'   →  push(TOK_STAR)
+  │            '`'   →  push(TOK_BACKTICK)
+  │            '\n'  →  push(TOK_NEWLINE)
+  │            ' '   →  push(TOK_TEXT " ")
+  │            ...
+  │
+  push(TOK_EOF)
+      │
+      │  TokenList tokens (now full)
+      ▼
+fopen("output/tokens.txt", "w")
+      │
+      ▼
+print_tokens(&tokens, out)
+  loop i = 0 to count:
+    token_type_name(t->type)
+    fprintf(out, ...)
+      │
+      ▼
+output/tokens.txt written
+```
+
+---
+
+### `push()` internals
+
+```text
+push(list, TOK_HASH, "#", line=1, col=1)
+      │
+      ├── guard: count >= MAX_TOKENS? → return
+      │
+      ├── t = &list->tokens[count]   ← point at next empty slot
+      │   count++
+      │
+      ├── t->type  = TOK_HASH
+      │   t->line  = 1
+      │   t->col   = 1
+      │   t->value = "#"
+      │
+      └── slot filled, count advanced
+```
+
+---
+
+### TokenList state over time
+
+```text
+Start:       count=0  [        ][        ][        ][        ]
+After #:     count=1  [HASH    ][        ][        ][        ]
+After " ":   count=2  [HASH    ][TEXT " "][        ][        ]
+After "Hi":  count=3  [HASH    ][TEXT " "][TEXT "Hi"][        ]
+After \n:    count=4  [HASH    ][TEXT " "][TEXT "Hi"][NEWLINE ]
+After EOF:   count=5  [HASH    ][TEXT " "][TEXT "Hi"][NEWLINE ][EOF]
+```

@@ -1,53 +1,57 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include "lexer.h"
+#include <stdio.h>  /* fopen, fclose, fprintf, printf */
+#include <string.h> /* string utilities */
+#include <stdlib.h> /* malloc, free */
+#include "lexer.h"  /* TokenList, lex(), print_tokens() */
 
 static char *read_file(const char *path)
 {
-    FILE   *f;
-    long    size;
-    char   *buf;
+    FILE *f;
+    long size;
+    char *buf;
 
     f = fopen(path, "r");
-    if (!f) {
-        fprintf(stderr, "Error: cannot open file '%s'\n", path);
-        return NULL;
-    }
 
+    /*
+    Find the size of the file using fseek and ftell
+    */
     fseek(f, 0, SEEK_END);
     size = ftell(f);
+
+    /*
+    Then send the cursor back to the top
+    */
     rewind(f);
 
-    buf = (char *)malloc(size + 3);  /* +3 for \0 and 2-char lookahead safety */
-    if (!buf) {
-        fprintf(stderr, "Error: out of memory\n");
-        fclose(f);
-        return NULL;
-    }
+    /*
+    Just incase some idiot make the entire markdown ONE SINGLE STRING
+    +3 because why not just in case
+    */
+    buf = (char *)malloc(size + 3);
 
+    /*
+    Copy file into buf
+    */
     fread(buf, 1, size, f);
-    buf[size]     = '\0';
-    buf[size + 1] = '\0';  /* lookahead safety: src[i+1] */
-    buf[size + 2] = '\0';  /* lookahead safety: src[i+2] */
+    /*
+    Forces last one to be null terminator
+    */
+    buf[size] = '\0';
+
     fclose(f);
     return buf;
 }
 
 int main(int argc, char *argv[])
 {
-    char      *file_src = NULL;
-    static TokenList tokens; 
-    FILE      *out;
+    char *file_src = NULL;
+    static TokenList tokens;
+    FILE *out;
 
-    if (argc < 2) {
-        fprintf(stderr, "Usage: output/main.exe input.md\n");
-        fprintf(stderr, "Error: no input file provided.\n");
-        return 1;
-    }
-
+    /*
+    argv[0] — always the program name itself
+    argv[1] — the first argument the user provided (the filename)
+    */
     file_src = read_file(argv[1]);
-    if (!file_src) return 1;
 
     lex(file_src, &tokens);
 

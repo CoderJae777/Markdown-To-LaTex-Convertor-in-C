@@ -19,10 +19,9 @@
 #define TOK_DOLLAR      12
 #define TOK_DOUBLE_DOL  13
 #define TOK_NEWLINE     14
-#define TOK_WHITESPACE  15
-#define TOK_GT          16   /* > for blockquote */
-#define TOK_DASH        17   /* - for list */
-#define TOK_EOF         18
+#define TOK_GT          15   /* > for blockquote */
+#define TOK_DASH        16   /* - for list */
+#define TOK_EOF         17
 
 typedef struct {
     int  type;
@@ -36,6 +35,6 @@ typedef struct {
     int   count;
 } TokenList;
 
-void      lex(const char *src, TokenList *list);
-void      print_tokens(const TokenList *list, FILE *out);
+void        lex(const char *src, TokenList *list);
+void        print_tokens(const TokenList *list, FILE *out);
 const char *token_type_name(int type);

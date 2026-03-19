@@ -241,9 +241,6 @@ void lex(const char *src, TokenList *list)
     push(list, TOK_EOF, "EOF", line, col);
 }
 
-/*
-Printing the tokens
-*/
 const char *token_type_name(int type)
 {
     switch (type)
@@ -278,8 +275,6 @@ const char *token_type_name(int type)
         return "DOUBLE_DOL ";
     case TOK_NEWLINE:
         return "NEWLINE    ";
-    case TOK_WHITESPACE:
-        return "WHITESPACE ";
     case TOK_GT:
         return "GT         ";
     case TOK_DASH:
@@ -292,10 +287,7 @@ const char *token_type_name(int type)
 }
 
 /*
-    Loops through the TokenList,
-    mathc with the token_type_name switch cases
-    then prints it out
-
+    Loops through the TokenList and prints type, line, col, value
 */
 void print_tokens(const TokenList *list, FILE *out)
 {

@@ -20,14 +20,17 @@ A command-line compiler written in ANSI C that converts Markdown (`.md`) files i
 
 ## Project Structure
 
-| File                  | Description                                                                          |
-| --------------------- | ------------------------------------------------------------------------------------ |
-| `main.c`              | Entry point — reads input file or test string, orchestrates lexer → parser → emitter |
-| `lexer.c` / `lexer.h` | Tokenizer — scans raw Markdown characters and produces a flat stream of typed tokens |
-| `template.c`          | Blank C file template for adding new modules                                         |
-| `test.md`             | Extensive Markdown test file covering all supported constructs                       |
-| `output/`             | Directory where compiled executables are placed                                      |
-| `Admin/`              | Project proposal, notes, and documentation                                           |
+| File                    | Description                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| `Makefile`              | Build script - `make` to compile, `make clean` to remove outputs                         |
+| `main.c`                | Entry point - reads input file, runs lexer then parser, writes tokens.txt and output.tex |
+| `lexer.c` / `lexer.h`   | Tokenizer - scans raw Markdown characters and produces a flat stream of typed tokens     |
+| `parser.c` / `parser.h` | Parser - walks the token stream and emits a complete LaTeX document                      |
+| `template.c`            | Blank C file template for adding new modules                                             |
+| `TestPro.md`            | Extensive Markdown test file covering all supported constructs                           |
+| `Test.md`               | Minimal quick test file                                                                  |
+| `output/`               | Compiled executables, `tokens.txt` debug dump, and `output.tex` LaTeX result             |
+| `Admin/`                | Project proposal, notes, and documentation                                               |
 
 ---
 
@@ -48,34 +51,58 @@ Verify your installation:
 gcc --version
 ```
 
+#### Install `make`
+
+> **Note:** The installation method for `make` differs depending on your operating system (OS).
+
+Anything just ask Chat/Google
+
 ---
 
 ## Compiling
 
+cd into project directory 
 ```bash
-gcc -Wall -Werror -ansi -pedantic main.c lexer.c -o output/main.exe
+make
+```
+
+Or manually:
+
+```bash
+gcc -Wall -Werror main.c lexer.c -o output/main.exe
+```
+
+To delete build outputs:
+
+```bash
+make clean
 ```
 
 ---
 
 ## Running
 
-Run with your own Markdown file:
+Build first, then run with your Markdown file:
 
 ```bash
+make
 output/main.exe yourfile.md
 ```
 
-Run with the provided test file:
+Run with the provided test files:
 
 ```bash
-// Minimal test
-output/main.exe Test.md
-
-// Every single markdown character
-output/main.exe TestPro.md
-
+make
+output/main.exe Test.md      # minimal test
+output/main.exe TestPro.md   # full coverage test
 ```
+
+Outputs are written to the `output/` directory:
+
+| File                | Contents                                     |
+| ------------------- | -------------------------------------------- |
+| `output/tokens.txt` | Debug dump of every token the lexer produced |
+| `output/output.tex` | The converted LaTeX document                 |
 
 ---
 
@@ -119,3 +146,5 @@ len = 0        →  buffer reset
 
 now handle '*' as its own token
 ```
+
+---

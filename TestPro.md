@@ -3,22 +3,27 @@
 ## 1. Headings
 
 # Heading Level 1
+
 ## Heading Level 2
+
 ### Heading Level 3
+
 #### Heading Level 4
+
 ##### Heading Level 5
+
 ###### Heading Level 6
 
 ## 2. Inline Formatting
 
 This is **bold text** in a sentence.
-This is *italic text* in a sentence.
-This is ***bold and italic*** in a sentence.
+This is _italic text_ in a sentence.
+This is **_bold and italic_** in a sentence.
 This is `inline code` in a sentence.
-This is **bold with *nested italic* inside** it.
-This is *italic with **nested bold** inside* it.
+This is **bold with _nested italic_ inside** it.
+This is _italic with **nested bold** inside_ it.
 This has **multiple** bold **words** in one line.
-This has *multiple* italic *words* in one line.
+This has _multiple_ italic _words_ in one line.
 
 ## 3. Paragraphs
 
@@ -35,7 +40,7 @@ This is a third paragraph. It comes after another blank line. Each paragraph bec
 - Item three
 
 - Item with **bold** text
-- Item with *italic* text
+- Item with _italic_ text
 - Item with `inline code`
 
 - Top level item A
@@ -54,18 +59,18 @@ This is a third paragraph. It comes after another blank line. Each paragraph bec
 2. Second item
 3. Third item
 
-1. First item with **bold**
-2. Second item with *italic*
-3. Third item with `code`
+4. First item with **bold**
+5. Second item with _italic_
+6. Third item with `code`
 
-1. Top level step one
+7. Top level step one
    1. Sub-step one
    2. Sub-step two
       1. Sub-sub-step one
       2. Sub-sub-step two
    3. Sub-step three
-2. Top level step two
-3. Top level step three
+8. Top level step two
+9. Top level step three
 
 ## 6. Mixed Lists
 
@@ -79,7 +84,7 @@ This is a third paragraph. It comes after another blank line. Each paragraph bec
 
 > This is a simple blockquote.
 
-> This is a blockquote with **bold** and *italic* inside it.
+> This is a blockquote with **bold** and _italic_ inside it.
 
 > First line of a multi-line blockquote.
 > Second line of the same blockquote.
@@ -126,7 +131,7 @@ print(greet("world"))
 
 [Link with **bold** label](http://example.com)
 
-[Link with *italic* label](http://example.com/page)
+[Link with _italic_ label](http://example.com/page)
 
 ![Simple image](images/photo.png)
 
@@ -157,23 +162,23 @@ $$
 ## 12. Tables
 
 | Name    | Age | City      |
-|---------|-----|-----------|
+| ------- | --- | --------- |
 | Alice   | 30  | Singapore |
 | Bob     | 25  | Tokyo     |
 | Charlie | 35  | London    |
 
 | Left aligned | Center aligned | Right aligned |
-|:-------------|:--------------:|--------------:|
-| cell 1       | cell 2         | cell 3        |
-| cell 4       | cell 5         | cell 6        |
+| :----------- | :------------: | ------------: |
+| cell 1       |     cell 2     |        cell 3 |
+| cell 4       |     cell 5     |        cell 6 |
 
-| Feature      | Supported | Notes              |
-|--------------|-----------|---------------------|
-| **Bold**     | Yes       | `\textbf{}`        |
-| *Italic*     | Yes       | `\textit{}`        |
-| `Code`       | Yes       | `\texttt{}`        |
-| Tables       | Yes       | `tabular` env      |
-| Images       | Partial   | no size control    |
+| Feature  | Supported | Notes           |
+| -------- | --------- | --------------- |
+| **Bold** | Yes       | `\textbf{}`     |
+| _Italic_ | Yes       | `\textit{}`     |
+| `Code`   | Yes       | `\texttt{}`     |
+| Tables   | Yes       | `tabular` env   |
+| Images   | Partial   | no size control |
 
 ## 13. Horizontal Rules
 
@@ -193,8 +198,8 @@ Another section after a rule.
 
 ### Empty formatting markers
 
-A line with a lone star * in the middle.
-A line with a lone underscore _ in the middle.
+A line with a lone star \* in the middle.
+A line with a lone underscore \_ in the middle.
 A line with a lone backtick ` in the middle.
 
 ### Special characters in text
@@ -208,13 +213,13 @@ The answer is 42 > 0.
 
 **bold** at the start of a line.
 A sentence ending with **bold**.
-(*italic inside parentheses*)
+(_italic inside parentheses_)
 A comma after **bold**, then more text.
-A period after *italic*.
+A period after _italic_.
 
 ### Consecutive formatting
 
-**bold** *italic* `code` in a row.
+**bold** _italic_ `code` in a row.
 
 ### Long paragraph
 
@@ -224,20 +229,20 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor i
 
 ### A realistic section
 
-The **lexer** is the first phase of a compiler. It reads a raw character stream and produces a flat list of *tokens*. Each token has:
+The **lexer** is the first phase of a compiler. It reads a raw character stream and produces a flat list of _tokens_. Each token has:
 
 - A **type** (e.g. `HASH`, `STAR`, `TEXT`)
 - A **value** (the matched text)
 - A **line** and **column** for error reporting
 
-The lexer does not understand structure. That is the job of the **parser**, which consumes the token stream and builds an *Abstract Syntax Tree* (AST).
+The lexer does not understand structure. That is the job of the **parser**, which consumes the token stream and builds an _Abstract Syntax Tree_ (AST).
 
 For more details see the [compiler architecture](http://example.com/arch).
 
 The key formula driving our tokenizer complexity is $O(n)$ where $n$ is the number of input characters.
 
-| Phase   | Input       | Output     |
-|---------|-------------|------------|
-| Lexer   | `char *`    | `Token[]`  |
-| Parser  | `Token[]`   | `Node *`   |
-| Emitter | `Node *`    | `char *`   |
+| Phase   | Input     | Output    |
+| ------- | --------- | --------- |
+| Lexer   | `char *`  | `Token[]` |
+| Parser  | `Token[]` | `Node *`  |
+| Emitter | `Node *`  | `char *`  |

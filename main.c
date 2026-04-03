@@ -2,6 +2,7 @@
 #include <string.h> /* string utilities */
 #include <stdlib.h> /* malloc, free */
 #include "lexer.h"  /* TokenList, lex(), print_tokens() */
+#include "parser.h"
 
 static char *read_file(const char *path)
 {
@@ -45,7 +46,8 @@ int main(int argc, char *argv[])
 {
     char *file_src = NULL;
     static TokenList tokens;
-    FILE *out;
+    FILE *fToken;
+    FILE *fLatex;
 
     /*
     argv[0] — always the program name itself
@@ -55,9 +57,13 @@ int main(int argc, char *argv[])
 
     lex(file_src, &tokens);
 
-    out = fopen("output/tokens.txt", "w");
-    print_tokens(&tokens, out);
-    fclose(out);
+    fToken = fopen("output/tokens.txt", "w");
+    print_tokens(&tokens, fToken);
+    fclose(fToken);
+
+    fLatex = fopen("output/main.tex", "w");
+    parse_and_emit(&tokens, fLatex); // Calling the parser using the TokenList tokens
+    fclose(fLatex);
 
     printf("Done. Token list written to output/tokens.txt (%d tokens)\n", tokens.count);
 

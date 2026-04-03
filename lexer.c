@@ -27,7 +27,6 @@ static int is_special(char c)
 static void push(TokenList *list, int type, const char *value, int line, int col)
 {
     Token *t;
-
     /*Current MAX_TOKENS is 8192 - approx 50-100 markdown pages already*/
     if (list->count >= MAX_TOKENS)
         return;

@@ -104,7 +104,11 @@ void lex(const char *src, TokenList *list)
         */
         if (!is_special(c))
         {
-            text_buf[text_len++] = c;
+            // text_buf[text_len++] = c;
+            if (text_len < MAX_TOKEN_VALUE - 1)
+            {
+                text_buf[text_len++] = c;
+            }
             col++;
             continue;
         }
@@ -125,15 +129,12 @@ void lex(const char *src, TokenList *list)
         }
         else if (c == ' ' || c == '\t')
         {
-            /* accumulate whitespace */
-            text_buf[text_len++] = c;
-            col++;
-            while (src[i + 1] == ' ' || src[i + 1] == '\t')
+            // treat whitespace as NORMAL text
+            if (text_len < MAX_TOKEN_VALUE - 1)
             {
-                text_buf[text_len++] = src[++i];
-                col++;
+                text_buf[text_len++] = c;
             }
-            flush_text(list, text_buf, &text_len, line, col);
+            col++;
         }
         else if (c == '*')
         {

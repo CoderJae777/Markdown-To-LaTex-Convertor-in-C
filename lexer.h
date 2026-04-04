@@ -1,5 +1,10 @@
 /* lexer.h - Markdown tokenizer */
 
+#ifndef LEXER_H
+#define LEXER_H
+
+#include <stdio.h>
+
 #define MAX_TOKEN_VALUE 256
 #define MAX_TOKENS      8192
 
@@ -38,3 +43,5 @@ typedef struct {
 void        lex(const char *src, TokenList *list);
 void        print_tokens(const TokenList *list, FILE *out);
 const char *token_type_name(int type);
+
+#endif

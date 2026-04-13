@@ -1490,7 +1490,7 @@ static void emit_block(ASTNode *node, FILE *out)
                 for (int k = 0; k < cell->child_count; k++)
                     emit_inline(cell->children[k], out);
             }
-            fputs(" \\\\n", out);
+            fputs(" \\\\\n", out);
             if (i == 0)
                 fputs("\\hline\n", out);
         }
@@ -1499,31 +1499,6 @@ static void emit_block(ASTNode *node, FILE *out)
         fputs("\\end{tabular}\n\n", out);
     }
     break;
-
-    case NODE_ITEM:
-        fputs("\\item", out);
-        int last_was_list = 0;
-        for (int i = 0; i < node->child_count; i++)
-        {
-            ASTNode *child = node->children[i];
-            if (child->type == NODE_LIST)
-            {
-                if (!last_was_list)
-                    fputs("\n", out);
-                emit_block(child, out);
-                last_was_list = 1;
-            }
-            else
-            {
-                if (i == 0)
-                    fputs(" ", out);
-                emit_inline(child, out);
-                last_was_list = 0;
-            }
-        }
-        if (!last_was_list)
-            fputs("\n", out);
-        break;
 
     case NODE_MATH_BLOCK:
         fputs("\\[\n", out);

@@ -188,6 +188,9 @@ static int peek_list_marker(Parser *p, int *indent, int *ordered, int *marker_po
     return 0;
 }
 
+// Forward declarations for functions used in parse_list_at
+static ASTNode *parse_code_block(Parser *p);
+
 static ASTNode *parse_list_at(Parser *p, int base_indent)
 {
     int indent, ordered, marker_pos;
@@ -209,17 +212,52 @@ static ASTNode *parse_list_at(Parser *p, int base_indent)
         parse_inline_until_newline(p, item);
         match(p, TOK_NEWLINE);
 
+        // Handle nested block content (lists, code blocks, etc.)
         while (1)
         {
             int next_indent, next_ordered, next_marker_pos;
             if (!peek_list_marker(p, &next_indent, &next_ordered, &next_marker_pos))
+            {
+                // No more list markers, but check for other block content (code blocks, etc)
+                // that should be part of this item
+                Token *t = peek(p);
+
+                // Check for code block
+                if ((t->type == TOK_TEXT && is_whitespace_text(t)) ||
+                    t->type == TOK_TRIPLE_BACKTICK)
+                {
+                    ASTNode *block = parse_code_block(p);
+                    if (block)
+                    {
+                        add_child(item, block);
+                        continue;
+                    }
+                }
+
                 break;
+            }
             if (next_indent <= base_indent)
                 break;
 
             ASTNode *nested = parse_list_at(p, next_indent);
             if (!nested)
+            {
+                // nested list parse failed, check for other block content
+                Token *t = peek(p);
+
+                // Check for code block
+                if ((t->type == TOK_TEXT && is_whitespace_text(t)) ||
+                    t->type == TOK_TRIPLE_BACKTICK)
+                {
+                    ASTNode *block = parse_code_block(p);
+                    if (block)
+                    {
+                        add_child(item, block);
+                        continue;
+                    }
+                }
                 break;
+            }
 
             add_child(item, nested);
         }

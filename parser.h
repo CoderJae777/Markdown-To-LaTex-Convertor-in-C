@@ -33,7 +33,7 @@ typedef struct ASTNode
     int ordered;
     char value[256];
 
-    struct ASTNode *children[256];
+    struct ASTNode *children[512]; // Increased from 256 to 512
     int child_count;
 } ASTNode;
 

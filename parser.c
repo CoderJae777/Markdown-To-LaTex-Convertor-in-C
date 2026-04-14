@@ -1455,7 +1455,7 @@ static void emit_block(ASTNode *node, FILE *out)
     }
 
     case NODE_PARAGRAPH:
-        fputs("\\noindent ", out);
+        // fputs("\\noindent ", out);
         for (int i = 0; i < node->child_count; i++)
             emit_inline(node->children[i], out);
         fputs("\n\n", out);

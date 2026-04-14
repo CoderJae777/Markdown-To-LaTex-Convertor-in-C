@@ -1,0 +1,2203 @@
+================================================================================
+                        PARSER FUNCTION REFERENCE
+                    Complete Function Index and Documentation
+================================================================================
+
+This document provides a complete reference for every function in parser.c,
+organized by category, with explanations of purpose, why needed, and usage.
+
+
+================================================================================
+SECTION 1: CORE PARSER UTILITIES
+================================================================================
+
+These are the fundamental low-level functions that manipulate the parser's
+position and check tokens. They form the basis of all other parsing logic.
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static Token *peek(Parser *p)
+Location: line 54
+Return type: Token *
+
+PURPOSE
+  Looks at the current token without consuming it (non-destructive read)
+
+PARAMETERS
+  p: Parser struct containing:
+     - tokens: pointer to TokenList
+     - pos: current position in token array
+
+RETURN VALUE
+  Pointer to token at current position
+
+WHAT IT DOES
+  Returns &p->tokens->tokens[p->pos]
+  No side effects, no position advance
+
+WHY NEEDED
+  - Lookahead decisions (What's next without committing?)
+  - Block type detection (Is this a heading? A list?)
+  - Condition checking in loops
+
+USAGE EXAMPLES
+  if (peek(p)->type == TOK_HASH)
+      return parse_heading(p);
+  
+  while (peek(p)->type != TOK_NEWLINE)
+      parse_inline(p, node);
+
+CALLED BY
+  Every conditional check in parser
+  Used in: peek_code_block, peek_blockquote, parse_block, etc. (60+ places)
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static Token *advance(Parser *p)
+Location: line 59
+Return type: Token *
+
+PURPOSE
+  Consumes current token and moves to next token (destructive read)
+
+PARAMETERS
+  p: Parser struct
+
+RETURN VALUE
+  Pointer to token that was just consumed (before position increment)
+
+WHAT IT DOES
+  Returns &p->tokens->tokens[p->pos++]
+  Post-increments p->pos (position moves forward)
+
+WHY NEEDED
+  - Consume tokens that have been matched
+  - Progress token stream forward
+  - Properly sequence parsing
+
+USAGE EXAMPLES
+  hash = advance(p);  // consume HASH token, move to next
+  
+  while (peek(p)->type != TOK_NEWLINE)
+      advance(p);     // skip tokens until newline
+
+CALLED BY
+  All parsing functions that process/consume tokens
+  Used in: parse_heading, parse_paragraph, match, etc. (50+ places)
+
+IMPORTANT NOTE
+  After simplification, advance() has NO bounds checking.
+  Trust that lexer properly terminated stream with TOK_EOF.
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int match(Parser *p, int type)
+Location: line 64
+Return type: int (1 if matched, 0 if not)
+
+PURPOSE
+  Checks if current token matches expected type, consumes if match
+
+PARAMETERS
+  p: Parser struct
+  type: Expected token type (e.g., TOK_NEWLINE, TOK_HASH)
+
+RETURN VALUE
+  1 if token matched and consumed
+  0 if token didn't match (not consumed)
+
+WHAT IT DOES
+  if (peek(p)->type == type) {
+      advance(p);
+      return 1;
+  }
+  return 0;
+
+WHY NEEDED
+  - Atomic "check and consume" operation
+  - Simpler than separate peek/advance calls
+  - Idiomatic parser operation
+
+USAGE EXAMPLES
+  if (!match(p, TOK_NEWLINE))
+      return NULL;  // Required newline missing
+  
+  match(p, TOK_RBRACKET);  // consume ], error if missing
+
+CALLED BY
+  Used after every token that must be consumed
+  Used in: Every parse_* function (30+ places)
+
+────────────────────────────────────────────────────────────────────────────
+
+
+================================================================================
+SECTION 2: AST MANAGEMENT AND MEMORY
+================================================================================
+
+Functions for creating, connecting, and destroying AST nodes.
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *create_node(NodeType type)
+Location: line 74
+Return type: ASTNode *
+
+PURPOSE
+  Allocates and initializes a new AST node
+
+PARAMETERS
+  type: Which type of node (NODE_HEADING, NODE_TEXT, NODE_BOLD, etc.)
+
+RETURN VALUE
+  Pointer to newly allocated node (already initialized)
+
+WHAT IT DOES
+  1. Allocates memory: malloc(sizeof(ASTNode))
+  2. Sets type field to passed type
+  3. Initializes all other fields to defaults:
+     - level = 0
+     - ordered = 0 (for lists)
+     - value[0] = '\0' (empty string)
+     - child_count = 0
+  4. Returns pointer
+
+WHY NEEDED
+  - Every AST node must be dynamically allocated
+  - Ensures consistent initialization
+  - Single place to modify if node structure changes
+
+USAGE EXAMPLES
+  ASTNode *heading = create_node(NODE_HEADING);
+  ASTNode *text = create_node(NODE_TEXT);
+  ASTNode *bold = create_node(NODE_BOLD);
+
+CALLED BY
+  Every parsing function that creates a node
+  Used in: parse_heading, parse_paragraph, parse_text, etc. (20+ places)
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static void add_child(ASTNode *parent, ASTNode *child)
+Location: line 852
+Return type: void
+
+PURPOSE
+  Attaches a child node to a parent node
+
+PARAMETERS
+  parent: Parent node to attach to
+  child: Child node to attach (or NULL to ignore)
+
+RETURN VALUE
+  None
+
+WHAT IT DOES
+  if (child)
+      parent->children[parent->child_count++] = child;
+  
+  Simple single line after recent simplification.
+
+WHY NEEDED
+  - Build tree structure
+  - Connect nodes into hierarchy
+  - Unified attach operation
+
+USAGE EXAMPLES
+  add_child(doc, heading);     // add heading to document
+  add_child(paragraph, text);  // add text to paragraph
+  add_child(bold, nested_text); // add content to bold
+
+CALLED BY
+  After every node is created and should be added to parent
+  Used in: parse_document, parse_paragraph, parse_inline, etc. (40+ places)
+
+IMPORTANT NOTE
+  After simplification: Removed all text merging and deduplication.
+  Now just enqueues child - parser doesn't manipulate text content.
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static void free_ast(ASTNode *node)
+Location: line 963
+Return type: void
+
+PURPOSE
+  Recursively deallocates entire AST subtree
+
+PARAMETERS
+  node: Root of subtree to free (or NULL)
+
+RETURN VALUE
+  None
+
+WHAT IT DOES
+  1. If node is NULL, return (safe to call on NULL)
+  2. For each child: recursively call free_ast(child)
+  3. Free the node itself: free(node)
+
+WHY NEEDED
+  - Prevent memory leaks
+  - Clean up after parsing complete
+  - Must deallocate children before parent
+
+USAGE EXAMPLES
+  free_ast(root);  // clean up entire document AST
+  free_ast(node);  // clean up subtree if error
+
+CALLED BY
+  parse_emphasis() when backtracking on failed match
+  end of main.c (currently NOT called - minor memory leak)
+  Any error path that abandons parsed structure
+
+IMPORTANT NOTE
+  Currently NOT called in main.c for the final AST.
+  For one-off programs, acceptable.
+  For library use, MUST call free_ast(root) after generate_latex().
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static void trim_trailing_whitespace(ASTNode *parent)
+Location: line 88
+Return type: void
+
+PURPOSE
+  STUB - does nothing (was: remove trailing whitespace from text)
+
+PARAMETERS
+  parent: Node (unused)
+
+RETURN VALUE
+  None
+
+WHAT IT DOES
+  Only comment: "// Parser should not format text - removed"
+
+WHY NEEDED
+  - Placeholder so parser doesn't crash calling it
+  - Documented removal of text formatting from parser
+  - Maintains API compatibility
+
+CALLED BY
+  parse_blockquote()
+  parse_table_row()
+
+NOTE: DESIGN DECISION
+  Originally: Trimmed trailing spaces from paragraph/blockquote content
+  Decision: Parser doesn't format text. Lexer tokenizes properly.
+  Result: Removed 13 lines of trimming logic, tests still pass.
+
+────────────────────────────────────────────────────────────────────────────
+
+
+================================================================================
+SECTION 3: TOKEN CLASSIFICATION HELPERS
+================================================================================
+
+Functions that classify and identify tokens based on their type or content.
+Used for lookahead decision-making and type checking.
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int is_whitespace_text(Token *t)
+Location: line 93
+Return type: int (1 if true whitespace, 0 otherwise)
+
+PURPOSE
+  Check if a text token contains only whitespace characters
+
+PARAMETERS
+  t: Token to examine
+
+RETURN VALUE
+  1 if token is TOK_TEXT and contains only spaces/tabs
+  0 otherwise
+
+WHAT IT DOES
+  1. If token type != TOK_TEXT, return 0
+  2. Loop through token value string
+  3. If any character is not space or tab, return 0
+  4. If all chars are space/tab, return 1
+
+WHY NEEDED
+  - Distinguish between meaningful text and spacing
+  - Used in lookahead to skip indentation before markers
+  - Identify padding/spacing in tables
+
+USAGE EXAMPLES
+  while (peek(p)->type == TOK_TEXT && is_whitespace_text(peek(p)))
+      advance(p);  // skip indentation
+  
+  if (is_whitespace_text(space_token))
+      skip_it();
+
+CALLED BY
+  peek_list_marker(): skip leading indentation
+  peek_blockquote(), peek_code_block(), peek_block_math(): skip spacing
+  parse_blockquote(), parse_code_block(): detect spacing
+  12 total occurrences
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int is_list_marker_token(Token *t, int *ordered)
+Location: line 107
+Return type: int (1 if marker, 0 otherwise)
+
+PURPOSE
+  Check if token is a list marker (dash, asterisk, plus, or number)
+
+PARAMETERS
+  t: Token to check
+  ordered: Output parameter - set to 1 if numbered list, 0 if bulleted
+
+RETURN VALUE
+  1 if token is a valid list marker
+  0 otherwise
+
+WHAT IT DOES
+  1. Check token type:
+     - TOK_DASH, TOK_STAR, TOK_PLUS → unordered (ordered = 0)
+     - TOK_NUMBER → ordered (ordered = 1)
+  2. If match, set *ordered appropriately and return 1
+  3. If no match, return 0
+
+WHY NEEDED
+  - Identify list items
+  - Distinguish ordered (1., 2., 3.) from unordered (-, *, +)
+  - Used in list detection
+
+USAGE EXAMPLES
+  int ordered = 0;
+  if (is_list_marker_token(tok, &ordered)) {
+      list_node->ordered = ordered;
+  }
+
+CALLED BY
+  peek_list_marker()
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int is_emphasis_token(int type)
+Location: line 938
+Return type: int (1 if emphasis, 0 otherwise)
+
+PURPOSE
+  Check if token is an emphasis delimiter (*, **, ***, _, __, ___)
+
+PARAMETERS
+  type: Token type to check
+
+RETURN VALUE
+  1 if token is any emphasis delimiter
+  0 otherwise
+
+WHAT IT DOES
+  Returns 1 if type matches:
+    TOK_STAR, TOK_DOUBLE_STAR, TOK_TRIPLE_STAR,
+    TOK_UNDERSCORE, TOK_DOUBLE_UNDERSCORE, TOK_TRIPLE_UNDERSCORE
+  Otherwise 0
+
+WHY NEEDED
+  - Distinguish emphasis content from plain text
+  - Route to emphasis parser when found
+  - Handle nesting of emphasis
+
+USAGE EXAMPLES
+  if (is_emphasis_token(peek(p)->type)) {
+      parse_emphasis(p, ...);
+  }
+
+CALLED BY
+  parse_inline(): dispatcher to check for emphasis
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static NodeType node_type_for_emphasis(int token_type)
+Location: line 948
+Return type: NodeType enum
+
+PURPOSE
+  Map emphasis token type to corresponding AST node type
+
+PARAMETERS
+  token_type: Token type (e.g., TOK_DOUBLE_STAR)
+
+RETURN VALUE
+  Corresponding NodeType:
+    TOK_STAR, TOK_UNDERSCORE → NODE_ITALIC
+    TOK_DOUBLE_STAR, TOK_DOUBLE_UNDERSCORE → NODE_BOLD
+    TOK_TRIPLE_STAR, TOK_TRIPLE_UNDERSCORE → NODE_BOLD_ITALIC
+
+WHAT IT DOES
+  Switch on token_type, return corresponding node type
+
+WHY NEEDED
+  - Convert token marker to semantic meaning
+  - Used when creating emphasis nodes
+  - Centralize token-to-node mapping
+
+USAGE EXAMPLES
+  NodeType nt = node_type_for_emphasis(TOK_DOUBLE_STAR);  // returns NODE_BOLD
+  node = parse_emphasis(p, type, nt, &valid);
+
+CALLED BY
+  parse_inline(): when creating emphasis nodes
+
+────────────────────────────────────────────────────────────────────────────
+
+
+================================================================================
+SECTION 4: LOOKAHEAD/PREDICTION FUNCTIONS (peek_*)
+================================================================================
+
+These functions look ahead in token stream WITHOUT consuming tokens.
+They predict whether next tokens match a specific block structure.
+
+Used by parse_block() dispatcher to determine which block parser to invoke.
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int peek_code_block(Parser *p)
+Location: line 530
+Return type: int (1 if code block detected, 0 otherwise)
+
+PURPOSE
+  Predict whether next tokens form a code block
+
+PARAMETERS
+  p: Parser position
+
+RETURN VALUE
+  1 if ``` detected at current position (with optional leading whitespace)
+  0 otherwise
+
+WHAT IT DOES
+  1. Save current position
+  2. Skip whitespace tokens (indentation)
+  3. Check if next token is TOK_TRIPLE_BACKTICK
+  4. Return result (no position change)
+
+WHY NEEDED
+  - Distinguish code blocks from paragraphs
+  - Must check before paragraph to avoid misparse
+  - Non-consuming allows other checks if false
+
+USAGE EXAMPLES
+  if (peek_code_block(p))
+      return parse_code_block(p);
+
+CALLED BY
+  parse_block(): first choice in dispatcher
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int peek_block_math(Parser *p)
+Location: line 547
+Return type: int (1 if math block detected, 0 otherwise)
+
+PURPOSE
+  Predict whether next tokens form a math block ($$...$$)
+
+PARAMETERS
+  p: Parser position
+
+RETURN VALUE
+  1 if $$ detected at current position
+  0 otherwise
+
+WHAT IT DOES
+  Similar to peek_code_block:
+  1. Skip whitespace
+  2. Check for TOK_DOUBLE_DOL
+  3. Return result
+
+WHY NEEDED
+  - Distinguish math blocks from text
+  - Must check early to avoid treating $$ as currency
+  - Allows falling through to paragraph if not match
+
+USAGE EXAMPLES
+  if (peek_block_math(p))
+      return parse_block_math(p);
+
+CALLED BY
+  parse_block(): second choice in dispatcher
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int peek_blockquote(Parser *p)
+Location: line 516
+Return type: int (1 if blockquote detected, 0 otherwise)
+
+PURPOSE
+  Predict whether next line is a blockquote line
+
+PARAMETERS
+  p: Parser position
+
+RETURN VALUE
+  1 if > found (possibly after whitespace)
+  0 otherwise
+
+WHAT IT DOES
+  1. Start lookahead at current position
+  2. Skip whitespace tokens
+  3. Check if next is TOK_GT (>)
+  4. Return result
+
+WHY NEEDED
+  - Distinguish blockquotes (> prefix) from plain text
+  - Multi-line blockquotes all detected same way
+  - Simple > check avoids misparse
+
+USAGE EXAMPLES
+  if (peek_blockquote(p))
+      return parse_blockquote(p);
+
+CALLED BY
+  parse_block(): after list check in dispatcher
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int peek_list_marker(Parser *p, int *indent, int *ordered, int *marker_pos)
+Location: line 138
+Return type: int (1 if marker found, 0 otherwise)
+
+PURPOSE
+  Predict whether next tokens form a list marker, return indent info
+
+PARAMETERS
+  p: Parser position
+  indent: Output - indentation level (spaces before marker)
+  ordered: Output - 1 if numbered list, 0 if bulleted
+  marker_pos: Output - token position of the marker
+
+RETURN VALUE
+  1 if valid list marker found at current indent
+  0 otherwise
+
+WHAT IT DOES
+  1. Loop through tokens accumulating indentation
+  2. Skip whitespace tokens, track total spaces
+  3. If find list marker token:
+     - Call is_list_marker_token() to get ordered flag
+     - Set *indent, *ordered, *marker_pos
+     - Return 1
+  4. If no marker found, return 0
+
+WHY NEEDED
+  - Identify list items
+  - Calculate indentation for nesting
+  - Determine list type (ordered/unordered)
+  - Used to differentiate lists from paragraphs starting with "-"
+
+USAGE EXAMPLES
+  int indent, ordered, pos;
+  if (peek_list_marker(p, &indent, &ordered, &pos)) {
+      // we have a list, indentation level is 'indent'
+  }
+
+CALLED BY
+  parse_block(): to check if current line is list
+  parse_list_at(): recursively to check for nested items
+
+CRITICAL FUNCTION
+  Most complex lookahead function
+  Must work for nested lists at different indents
+  Output parameters provide context for nested parsing
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int peek_table_row(Parser *p)
+Location: line 359
+Return type: int (1 if line has pipes, 0 otherwise)
+
+PURPOSE
+  Check if current line is a table row (contains pipes)
+
+PARAMETERS
+  p: Parser position
+
+RETURN VALUE
+  1 if line contains TOK_PIPE
+  0 otherwise
+
+WHAT IT DOES
+  1. Find end of line
+  2. Call line_has_pipe() to check for pipes
+  3. Return result
+
+WHY NEEDED
+  - First check for table detection
+  - Lines with pipes might be table rows
+  - Used in combination with separator check
+
+USAGE EXAMPLES
+  if (peek_table_row(p))
+      // might be table, now check for separator
+
+CALLED BY
+  peek_table()
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int peek_table(Parser *p)
+Location: line 367
+Return type: int (1 if valid table, 0 otherwise)
+
+PURPOSE
+  Predict whether next tokens form a complete table structure
+
+PARAMETERS
+  p: Parser position
+
+RETURN VALUE
+  1 if current line is table row AND next line is separator
+  0 otherwise
+
+WHAT IT DOES
+  1. Check if current line is table row (has pipes)
+  2. Find next line
+  3. Check if next line is valid separator (| ----- |)
+  4. If both: return 1, else 0
+
+WHY NEEDED
+  - Markdown requires header + separator to be table
+  - Single pipe line is just text with pipes
+  - Must verify complete structure before committing to parsing
+  - Prevents false positives
+
+USAGE EXAMPLES
+  if (peek_table(p))
+      return parse_table(p);
+
+CALLED BY
+  parse_block(): to check for table structure
+
+CRITICAL FUNCTION
+  Validates multi-line structure
+  Second-most complex lookahead after peek_list_marker
+
+────────────────────────────────────────────────────────────────────────────
+
+
+================================================================================
+SECTION 5: TABLE PARSING HELPER FUNCTIONS
+================================================================================
+
+These support table parsing by analyzing table structure and alignment.
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int get_line_end(Parser *p, int pos)
+Location: line 252
+Return type: int (position of NEWLINE)
+
+PURPOSE
+  Find the end of current line from given position
+
+PARAMETERS
+  p: Parser
+  pos: Starting position to search from
+
+RETURN VALUE
+  Token position of the NEWLINE ending this line
+
+WHAT IT DOES
+  1. Start at position pos
+  2. Loop: while not NEWLINE and not EOF
+  3. Increment position
+  4. Return position at NEWLINE
+
+WHY NEEDED
+  - Tables need to check entire lines
+  - Line-based analysis for separators
+  - Boundary detection
+
+USAGE EXAMPLES
+  int line_end = get_line_end(p, p->pos);
+
+CALLED BY
+  line_has_pipe()
+  is_table_separator_line()
+  peek_table()
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int line_has_pipe(Parser *p, int start_pos, int end_pos)
+Location: line 263
+Return type: int (1 if found, 0 otherwise)
+
+PURPOSE
+  Check if tokens between start and end contain a pipe character
+
+PARAMETERS
+  p: Parser
+  start_pos, end_pos: Range of token positions to check
+
+RETURN VALUE
+  1 if TOK_PIPE found in range
+  0 otherwise
+
+WHAT IT DOES
+  Loop through tokens from start_pos to end_pos
+  If find TOK_PIPE, return 1
+  If reach end without finding pipe, return 0
+
+WHY NEEDED
+  - Identify table rows (must have pipes)
+  - Distinguish tables from paragraphs
+
+USAGE EXAMPLES
+  if (line_has_pipe(p, pos, line_end))
+      // this line might be a table row
+
+CALLED BY
+  peek_table_row()
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static void collect_separator_segment(Parser *p, int start_pos, int end_pos, char *buf, int max_len)
+Location: line 273
+Return type: void
+
+PURPOSE
+  Extract text content from token range into buffer
+
+PARAMETERS
+  p: Parser
+  start_pos, end_pos: Range of positions
+  buf: Output buffer
+  max_len: Maximum buffer size
+
+RETURN VALUE
+  None (writes to buf)
+
+WHAT IT DOES
+  1. Loop through tokens in range
+  2. For each token, append its value to buffer
+  3. Handle special cases (PIPE → skip, DASH → append, TEXT → append)
+  4. Null-terminate buffer
+
+WHY NEEDED
+  - Extract table separator pattern (e.g., "---:---")
+  - Build delimiter strings for analysis
+  - Separate tokens back into analyzable text
+
+USAGE EXAMPLES
+  collect_separator_segment(p, seg_start, seg_end, segment, 256);
+  if (segment_is_table_separator(segment))
+      is_valid_separator = 1;
+
+CALLED BY
+  is_table_separator_line()
+  parse_table_alignment()
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int segment_is_table_separator(const char *segment)
+Location: line 304
+Return type: int (1 if valid, 0 otherwise)
+
+PURPOSE
+  Check if text segment is a valid table separator (:--:)
+
+PARAMETERS
+  segment: String like "---" or ":---:" or "-:--"
+
+RETURN VALUE
+  1 if valid separator pattern
+  0 otherwise
+
+WHAT IT DOES
+  1. Skip leading whitespace
+  2. Optional colon (left align marker)
+  3. At least one dash (required)
+  4. Optional colon (right align marker)
+  5. Skip trailing whitespace
+  6. Must end at null terminator (nothing else)
+
+PATTERN ANALYSIS
+  "---"      → left align (valid)
+  ":--:"     → center align (valid)
+  "--:"      → right align (valid)
+  ":-:"      → invalid (only one dash)
+  "abc"      → invalid (no dashes)
+  ""         → invalid (no dashes)
+
+WHY NEEDED
+  - Detect valid table separators
+  - Part of table structure validation
+  - Prevent false positives (lines with dashes aren't tables)
+
+USAGE EXAMPLES
+  if (segment_is_table_separator(segment))
+      // valid separator column
+
+CALLED BY
+  is_table_separator_line()
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static int is_table_separator_line(Parser *p, int start_pos, int end_pos)
+Location: line 333
+Return type: int (1 if valid separator line, 0 otherwise)
+
+PURPOSE
+  Check if line is a valid table separator (all columns valid)
+
+PARAMETERS
+  p: Parser
+  start_pos, end_pos: Line range
+
+RETURN VALUE
+  1 if all segments are valid separators
+  0 otherwise
+
+WHAT IT DOES
+  1. Loop through tokens in range
+  2. Split on pipes (TOK_PIPE)
+  3. For each segment between pipes:
+     - Collect segment content
+     - Check if valid separator
+     - If invalid, return 0
+  4. If all segments valid and has pipes, return 1
+
+WHY NEEDED
+  - Validate complete separator rows
+  - All columns must have valid separators
+  - Part of table structure verification
+
+USAGE EXAMPLES
+  if (is_table_separator_line(p, next_pos, next_end))
+      // second line is valid table separator
+
+CALLED BY
+  peek_table()
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static char alignment_for_segment(const char *segment)
+Location: line 411
+Return type: char ('l', 'r', 'c', or '\0')
+
+PURPOSE
+  Extract alignment code from separator segment
+
+PARAMETERS
+  segment: Segment string like ":---:" or "---"
+
+RETURN VALUE
+  'l' for left align (:--- or ---)
+  'r' for right align (---:)
+  'c' for center align (:---:)
+  '\0' for invalid
+
+WHAT IT DOES
+  1. Skip leading whitespace
+  2. Check for left colon (left = 1)
+  3. Count dashes (must be > 0)
+  4. Check for right colon (right = 1)
+  5. Check no trailing content
+  6. Return alignment based on colon positions
+
+ALIGNMENT RULES
+  left & right → 'c' (center)
+  right only  → 'r' (right)
+  left or neither → 'l' (left)
+
+WHY NEEDED
+  - Convert LaTeX alignment specs (lll, lcr, etc.)
+  - Store alignment in table node
+  - Pass to tabular environment in LaTeX
+
+USAGE EXAMPLES
+  char align_col = alignment_for_segment(":---:");  // returns 'c'
+
+CALLED BY
+  parse_table_alignment()
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static void parse_table_alignment(Parser *p, char *align, int max_cols)
+Location: line 455
+Return type: void
+
+PURPOSE
+  Extract and build alignment string from separator row
+
+PARAMETERS
+  p: Parser at separator line start
+  align: Output buffer for alignment string
+  max_cols: Maximum columns to process
+
+RETURN VALUE
+  None (writes to align buffer)
+
+WHAT IT DOES
+  1. Loop through tokens until NEWLINE
+  2. Split on pipes
+  3. For each segment:
+     - Get alignment character
+     - Append to align string
+  4. Null-terminate align
+
+RESULT
+  align = "lcr" (left, center, right alignment)
+
+WHY NEEDED
+  - Build LaTeX tabular spec
+  - LaTeX needs explicit column alignment
+  - Used in generate_latex for \begin{tabular}{lcr}
+
+USAGE EXAMPLES
+  parse_table_alignment(p, align, 255);
+  // align now contains "lll" for 3 left-aligned columns
+
+CALLED BY
+  parse_table(): after parsing header row
+
+────────────────────────────────────────────────────────────────────────────
+
+
+================================================================================
+SECTION 6: BLOCK-LEVEL PARSING FUNCTIONS
+================================================================================
+
+These are the main parsing entry points for each block type.
+Called by parse_block() dispatcher.
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: ASTNode *parse_document(Parser *p)
+Location: line 871
+Return type: ASTNode * (NODE_DOCUMENT)
+
+PURPOSE
+  Main entry point - parse entire document
+
+PARAMETERS
+  p: Parser initialized with token stream
+
+RETURN VALUE
+  Root AST node (NODE_DOCUMENT) containing all blocks
+
+WHAT IT DOES
+  1. Create NODE_DOCUMENT
+  2. Loop: while not EOF
+     - Skip NEWLINE tokens (blank lines)
+     - Call parse_block() for each block
+     - Attach result to document
+  3. Return document node
+
+WHY NEEDED
+  - Document-level dispatcher
+  - Handles top-level structure
+  - Entry point from main.c
+
+USAGE EXAMPLES
+  parser.tokens = &tokens;
+  parser.pos = 0;
+  ASTNode *root = parse_document(&parser);
+
+CALLED BY
+  main.c: after lexer tokenizes input
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: ASTNode *parse_block(Parser *p)
+Location: line 905
+Return type: ASTNode * (any block type)
+
+PURPOSE
+  Dispatcher - determine block type and parse it
+
+PARAMETERS
+  p: Parser at block start
+
+RETURN VALUE
+  Appropriate block node or NULL if no valid block
+
+WHAT IT DOES
+  Decision tree (checks in order):
+  1. Is it code block? (```) → parse_code_block()
+  2. Is it math block? ($$) → parse_block_math()
+  3. Is it blockquote? (>) → parse_blockquote()
+  4. Is it table? (| with separator) → parse_table()
+  5. Is it list? (-, *, +, number) → parse_list()
+  6. Is it heading? (#) → parse_heading()
+  7. Default: parse_paragraph()
+
+WHY NEEDED
+  - Central decision logic
+  - Tries block types in priority order
+  - Falls back to paragraph if uncertain
+
+USAGE EXAMPLES
+  Called automatically by parse_document()
+
+CALLED BY
+  parse_document(): main loop
+  parse_list_at(): for nested block content
+
+CRITICAL: ORDERING MATTERS
+  Code blocks checked first (don't want to parse ``` inside text)
+  Blockquotes before tables (> prefix)
+  Headings before paragraphs
+  Paragraph is fallback for plain text
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: ASTNode *parse_heading(Parser *p)
+Location: line 920
+Return type: ASTNode * (NODE_HEADING)
+
+PURPOSE
+  Parse heading line (# Heading text)
+
+PARAMETERS
+  p: Parser at HASH token
+
+RETURN VALUE
+  NODE_HEADING with level and inline children
+
+WHAT IT DOES
+  1. Consume HASH token (e.g., ##)
+  2. Create NODE_HEADING
+  3. Set level = strlen(hash_token)  (e.g., ## → level 2)
+  4. Parse inline content until NEWLINE:
+     - Call parse_inline() for text, bold, links, etc.
+  5. Consume NEWLINE
+  6. Return heading
+
+EXAMPLE EXECUTION
+  Input: "## Bold **heading**"
+  Token stream: HASH(##), TEXT(Bold ), DOUBLE_STAR(**), TEXT(heading), DOUBLE_STAR(**), NEWLINE
+  
+  Output:
+    NODE_HEADING (level=2)
+    ├─ NODE_TEXT "Bold "
+    ├─ NODE_BOLD
+    │   └─ NODE_TEXT "heading"
+
+WHY NEEDED
+  - Parse markdown headings (# to #####)
+  - Support heading levels (1-5)
+  - Inline formatting within headings
+
+USAGE EXAMPLES
+  Called from parse_block() when sees HASH token
+
+CALLED BY
+  parse_block(): when current token is HASH
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: ASTNode *parse_paragraph(Parser *p)
+Location: line 933
+Return type: ASTNode * (NODE_PARAGRAPH)
+
+PURPOSE
+  Parse plain text paragraph
+
+PARAMETERS
+  p: Parser at paragraph start
+
+RETURN VALUE
+  NODE_PARAGRAPH with inline children
+
+WHAT IT DOES
+  1. Create NODE_PARAGRAPH
+  2. Loop: while not NEWLINE and not EOF
+     - Call parse_inline() to parse inline elements
+  3. Consume NEWLINE
+  4. Return paragraph
+
+EXAMPLE EXECUTION
+  Input: "This is **bold** text"
+  Output:
+    NODE_PARAGRAPH
+    ├─ NODE_TEXT "This is "
+    ├─ NODE_BOLD
+    │   └─ NODE_TEXT "bold"
+    └─ NODE_TEXT " text"
+
+WHY NEEDED
+  - Default block for plain text
+  - Support inline formatting (bold, links, etc.)
+  - Catch-all for non-special blocks
+
+USAGE EXAMPLES
+  Called from parse_block() when no special block type detected
+
+CALLED BY
+  parse_block(): default case
+  parse_blockquote(): for lines inside quote
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: ASTNode *parse_list(Parser *p)
+Location: line 929
+Return type: ASTNode * (NODE_LIST)
+
+PURPOSE
+  Parse list (convenience wrapper for parse_list_at)
+
+PARAMETERS
+  p: Parser at list marker
+
+RETURN VALUE
+  NODE_LIST with items
+
+WHAT IT DOES
+  Simply: return parse_list_at(p, 0)
+  (delegates to main list function with base indent 0)
+
+WHY NEEDED
+  - Public interface to list parsing
+  - Wrapper for consistency
+
+CALLED BY
+  parse_block(): when sees list marker
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *parse_list_at(Parser *p, int base_indent)
+Location: line 175
+Return type: ASTNode * (NODE_LIST)
+
+PURPOSE
+  Parse list with support for nested lists at deeper indents
+
+PARAMETERS
+  p: Parser at list marker
+  base_indent: Required indentation level for this list's items
+
+RETURN VALUE
+  NODE_LIST with items (and possibly nested lists)
+
+WHAT IT DOES
+  1. Create NODE_LIST
+  2. Set ordered flag based on marker type
+  3. Loop: while sees list marker at base_indent
+     a. Skip to marker position
+     b. Consume marker
+     c. Create NODE_ITEM
+     d. Parse inline content until NEWLINE
+     e. Check for nested content:
+        - If more indented list: recursively parse_list_at()
+        - If code block: parse_code_block()
+        - Otherwise: exit inner loop
+     f. Add item to list
+  4. Return list
+
+NESTING EXAMPLE
+  - Item 1
+    - Nested 1.1
+    - Nested 1.2
+  - Item 2
+
+  Result:
+    NODE_LIST (ordered=0)
+    ├─ NODE_ITEM
+    │   ├─ NODE_TEXT "Item 1"
+    │   └─ NODE_LIST (nested)
+    │       ├─ NODE_ITEM
+    │       │   └─ NODE_TEXT "Nested 1.1"
+    │       └─ NODE_ITEM
+    │           └─ NODE_TEXT "Nested 1.2"
+    └─ NODE_ITEM
+        └─ NODE_TEXT "Item 2"
+
+WHY NEEDED
+  - Handle nested lists at different indents
+  - Prevent infinite recursion (base_indent parameter)
+  - Support complex list structures
+
+USAGE EXAMPLES
+  Called from parse_list() initially
+  Recursively called for nested lists with deeper indent
+
+CALLED BY
+  parse_list()
+  Itself (recursively for nesting)
+
+CRITICAL FUNCTION
+  Most complex block parser
+  Manages indentation-based nesting
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *parse_table(Parser *p)
+Location: line 491
+Return type: ASTNode * (NODE_TABLE)
+
+PURPOSE
+  Parse markdown table structure
+
+PARAMETERS
+  p: Parser at table header line
+
+RETURN VALUE
+  NODE_TABLE with header, separator alignment, and data rows
+
+WHAT IT DOES
+  1. Verify it's a table (peek_table check)
+  2. Create NODE_TABLE
+  3. Parse header row: parse_table_row()
+  4. Parse alignment row: parse_table_alignment()
+  5. Store alignment string in table->value
+  6. Loop: while more table rows
+     - Parse each row: parse_table_row()
+     - Add to table
+  7. Return table
+
+TABLE STRUCTURE EXAMPLE
+  | Header 1 | Header 2 |
+  |----------|----------|
+  | Cell A   | Cell B   |
+
+  Result:
+    NODE_TABLE (value="ll")
+    ├─ NODE_TABLE_ROW (header)
+    │   ├─ NODE_TABLE_CELL
+    │   │   └─ NODE_TEXT "Header 1"
+    │   └─ NODE_TABLE_CELL
+    │       └─ NODE_TEXT "Header 2"
+    └─ NODE_TABLE_ROW (data)
+        ├─ NODE_TABLE_CELL
+        │   └─ NODE_TEXT "Cell A"
+        └─ NODE_TABLE_CELL
+            └─ NODE_TEXT "Cell B"
+
+WHY NEEDED
+  - Parse table markdown syntax
+  - Capture alignment information
+  - Build proper AST for LaTeX tabular
+
+USAGE EXAMPLES
+  Called from parse_block() when peek_table() returns true
+
+CALLED BY
+  parse_block(): when table structure detected
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *parse_table_row(Parser *p)
+Location: line 384
+Return type: ASTNode * (NODE_TABLE_ROW)
+
+PURPOSE
+  Parse single table row into cells
+
+PARAMETERS
+  p: Parser at row start
+
+RETURN VALUE
+  NODE_TABLE_ROW with cells
+
+WHAT IT DOES
+  1. Create NODE_TABLE_ROW
+  2. Loop: while not NEWLINE and not EOF
+     - If TOK_PIPE: skip it (continue)
+     - Otherwise: create NODE_TABLE_CELL
+     - Parse inline until next PIPE: parse_inline_until()
+     - Add cell to row
+  3. Consume NEWLINE
+  4. Return row
+
+WHY NEEDED
+  - Parse individual table rows
+  - Split on pipes into cells
+  - Each cell contains inline elements
+
+USAGE EXAMPLES
+  Called from parse_table() for header and data rows
+
+CALLED BY
+  parse_table()
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *parse_code_block(Parser *p)
+Location: line 774
+Return type: ASTNode * (NODE_CODE_BLOCK)
+
+PURPOSE
+  Parse fenced code block (``` language ... ```)
+
+PARAMETERS
+  p: Parser at opening ```
+
+RETURN VALUE
+  NODE_CODE_BLOCK with raw text content
+
+WHAT IT DOES
+  1. Skip whitespace, consume TOK_TRIPLE_BACKTICK
+  2. Skip rest of line (language specifier)
+  3. Consume NEWLINE
+  4. Create NODE_CODE_BLOCK
+  5. Loop: while not closing ``` and not EOF
+     - Collect entire line as raw text
+     - Create NODE_TEXT with raw content
+     - Add to code block
+  6. Consume closing ```
+  7. Consume NEWLINE
+  8. Return code block
+
+CONTENT PRESERVATION
+  ALL content inside ``` is preserved exactly:
+  ├─ No markdown interpretation
+  ├─ No formatting
+  ├─ No escaping (until LaTeX generation)
+  └─ Newlines become line elements
+
+WHY NEEDED
+  - Support code display
+  - Preserve exact formatting
+  - Don't interpret markdown inside code
+
+USAGE EXAMPLES
+  ```python
+  print('hello')
+  ```
+  
+  Result:
+    NODE_CODE_BLOCK
+    └─ NODE_TEXT "print('hello')"
+
+CALLED BY
+  parse_block(): when peek_code_block() true
+  parse_list_at(): for code in list items
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *parse_blockquote(Parser *p)
+Location: line 815
+Return type: ASTNode * (NODE_BLOCKQUOTE)
+
+PURPOSE
+  Parse blockquote block (> prefix on lines)
+
+PARAMETERS
+  p: Parser at > marker
+
+RETURN VALUE
+  NODE_BLOCKQUOTE with paragraph children
+
+WHAT IT DOES
+  1. Create NODE_BLOCKQUOTE
+  2. Loop: while sees > marker
+     - Skip whitespace before >
+     - Consume TOK_GT
+     - Skip space after > if exists
+     - Create NODE_PARAGRAPH
+     - Parse inline content until NEWLINE
+     - Consume NEWLINE
+     - Add paragraph to blockquote
+  3. Return blockquote
+
+MULTI-LINE BLOCKQUOTES
+  > First line
+  > Second line
+  
+  Result:
+    NODE_BLOCKQUOTE
+    ├─ NODE_PARAGRAPH
+    │   └─ NODE_TEXT "First line"
+    └─ NODE_PARAGRAPH
+        └─ NODE_TEXT "Second line"
+
+WHY NEEDED
+  - Support quoted text blocks
+  - Handle multi-line quotes
+  - Maintain paragraph structure inside
+
+USAGE EXAMPLES
+  Called from parse_block() when peek_blockquote() true
+
+CALLED BY
+  parse_block(): when blockquote detected
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *parse_block_math(Parser *p)
+Location: line 561
+Return type: ASTNode * (NODE_MATH_BLOCK)
+
+PURPOSE
+  Parse math block ($$...$$) - display math mode
+
+PARAMETERS
+  p: Parser at opening $$
+
+RETURN VALUE
+  NODE_MATH_BLOCK with raw LaTeX content
+
+WHAT IT DOES
+  1. Skip whitespace, consume TOK_DOUBLE_DOL
+  2. Skip to NEWLINE
+  3. Create NODE_MATH_BLOCK
+  4. Loop: while not closing $$ and not EOF
+     - Collect line as raw text
+     - Create NODE_TEXT child
+     - Add to math node
+  5. Consume closing $$
+  6. Consume NEWLINE
+  7. Return math block
+
+CONTENT PRESERVATION
+  LaTeX math source preserved exactly (like code blocks)
+  No interpretation, just storage
+
+WHY NEEDED
+  - Support display math
+  - Preserve LaTeX formatting
+  - Raw storage until generation
+
+USAGE EXAMPLES
+  $$
+  x^2 + y^2 = r^2
+  $$
+
+CALLED BY
+  parse_block(): when peek_block_math() true
+
+────────────────────────────────────────────────────────────────────────────
+
+
+================================================================================
+SECTION 7: INLINE-LEVEL PARSING FUNCTIONS
+================================================================================
+
+These functions parse formatting and elements WITHIN blocks.
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: void parse_inline(Parser *p, ASTNode *parent)
+Location: line 1028
+Return type: void (adds children to parent)
+
+PURPOSE
+  Dispatcher - determine inline element type and parse it
+
+PARAMETERS
+  p: Parser at inline element start
+  parent: Block node to attach inline element to
+
+RETURN VALUE
+  None (modifies parent by adding children)
+
+WHAT IT DOES
+  Decision tree (checks in order):
+  1. Is ![...](...) (image)? → parse_image()
+  2. Is [...](...)  (link)? → parse_link()
+  3. Is `...` (code)? → parse_inline_code()
+  4. Is $...$ (math)? → parse_math_inline()
+  5. Is emphasis (*, **, etc)? → parse_emphasis()
+  6. Is plain TEXT? → parse_text()
+  7. Otherwise: consume as text fallback
+
+WHY NEEDED
+  - Central inline dispatcher
+  - Routes to appropriate inline parser
+  - Adds result to parent
+
+USAGE EXAMPLES
+  Called from parse_heading(), parse_paragraph(), etc.
+
+CALLED BY
+  parse_heading(): for heading content
+  parse_paragraph(): for paragraph content
+  parse_blockquote(): for quote content
+  parse_emphasis(): for nested emphasis
+  parse_link(): for link text content
+  parse_image(): for alt text content
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static void parse_inline_until(Parser *p, ASTNode *parent, int end_type)
+Location: line 635
+Return type: void
+
+PURPOSE
+  Parse inline elements until specific token is encountered
+
+PARAMETERS
+  p: Parser
+  parent: Node to attach inline elements to
+  end_type: Stop when this token type seen (e.g., TOK_PIPE, TOK_RBRACKET)
+
+RETURN VALUE
+  None (modifies parent)
+
+WHAT IT DOES
+  Loop: while (not end_type and not EOF and not NEWLINE)
+      Call parse_inline(p, parent)
+
+WHY NEEDED
+  - Parse inline content with different end conditions
+  - Used for table cells (end at PIPE)
+  - Used for links (end at RBRACKET)
+  - Generic "parse until" utility
+
+USAGE EXAMPLES
+  parse_inline_until(p, cell, TOK_PIPE);   // table cell content
+  parse_inline_until(p, link, TOK_RBRACKET); // link text
+
+CALLED BY
+  parse_table_row(): for cell content
+  parse_link(): for link text
+  parse_image(): for alt text
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: ASTNode *parse_text(Parser *p)
+Location: line 1104
+Return type: ASTNode * (NODE_TEXT)
+
+PURPOSE
+  Parse plain text token
+
+PARAMETERS
+  p: Parser at TOK_TEXT
+
+RETURN VALUE
+  NODE_TEXT with token value
+
+WHAT IT DOES
+  1. Consume current token: advance(p)
+  2. Create NODE_TEXT
+  3. Copy token value to node.value
+  4. Return node
+
+WHY NEEDED
+  - Convert plain tokens to AST nodes
+  - Part of inline parsing dispatcher
+
+USAGE EXAMPLES
+  Called from parse_inline() when sees TOK_TEXT
+
+CALLED BY
+  parse_inline(): for plain text
+  parse_emphasis(): for content inside emphasis
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *parse_emphasis(Parser *p, int open_type, NodeType node_type, int *valid)
+Location: line 974
+Return type: ASTNode * (NODE_BOLD, NODE_ITALIC, or NODE_BOLD_ITALIC)
+
+PURPOSE
+  Parse emphasis (**, *, ___, _, etc.) with backtracking
+
+PARAMETERS
+  p: Parser at opening delimiter
+  open_type: Token type for delimiter (TOK_DOUBLE_STAR, etc.)
+  node_type: AST node type to create (NODE_BOLD, NODE_ITALIC, NODE_BOLD_ITALIC)
+  valid: Output parameter - set to 1 if valid, 0 if backtracked
+
+RETURN VALUE
+  NODE_BOLD/ITALIC/BOLD_ITALIC or raw text if invalid
+
+WHAT IT DOES
+  1. Save start position (for backtracking)
+  2. Consume opening delimiter
+  3. Create emphasis node
+  4. Loop: while not matching delimiter and not EOF/NEWLINE
+     - Call parse_inline() for nested content
+  5. Try to match closing delimiter:
+     - Found? Set *valid=1, return emphasis node
+     - Not found? Backtrack:
+       - Free emphasis node
+       - Set *valid=0
+       - Return raw text from start to current position
+       - This allows fallback to plain text with delimiters visible
+
+BACKTRACKING EXAMPLE
+  Input: **incomplete bold
+  
+  1. Parse **
+  2. Find "incomplete bold"
+  3. Look for closing **
+  4. Don't find it (hit end or newline)
+  5. Backtrack! Return as text: "**incomplete bold"
+
+WHY NEEDED
+  - Handle mismatched emphasis gracefully
+  - Prevent parse failures
+  - Allow text with visible delimiters
+
+USAGE EXAMPLES
+  Called from parse_inline() when sees emphasis token
+
+CALLED BY
+  parse_inline(): for emphasis
+
+CRITICAL FUNCTION
+  Enables graceful degradation
+  Prevents catastrophic parse failures
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: ASTNode *parse_bold(Parser *p)
+Location: line 1122
+Return type: ASTNode *
+
+PURPOSE
+  Parse bold emphasis specifically (**)
+
+PARAMETERS
+  p: Parser at TOK_DOUBLE_STAR
+
+RETURN VALUE
+  NODE_BOLD or text if invalid
+
+WHAT IT DOES
+  Calls parse_emphasis(p, TOK_DOUBLE_STAR, NODE_BOLD, &valid)
+
+WHY NEEDED
+  - Typed interface for bold parsing
+  - Allows parse_bold() in public API if needed
+  - Specialized emphasis handler
+
+CALLED BY
+  Could be called from parse_inline() but isn't currently
+  (parse_inline uses generic parse_emphasis dispatcher)
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *parse_link(Parser *p)
+Location: line 685
+Return type: ASTNode * (NODE_LINK or NULL)
+
+PURPOSE
+  Parse markdown link [text](url)
+
+PARAMETERS
+  p: Parser at [
+
+RETURN VALUE
+  NODE_LINK with link text as children and URL stored in value
+  OR NULL if invalid syntax
+
+WHAT IT DOES
+  1. Save position (for backtracking if invalid)
+  2. Consume [
+  3. Parse inline content until ]:
+     - Link text can contain formatting (bold, italic, etc.)
+  4. Consume ]
+  5. Consume (
+  6. Collect all text until ) as URL
+  7. Consume )
+  8. Create NODE_LINK
+  9. Store URL in node.value
+  10. Return link node
+  
+  If any step fails:
+     - Backtrack: reset position
+     - Return NULL
+     - parse_inline() treats as plain text
+
+EXAMPLE EXECUTION
+  Input: [my **link**](https://example.com)
+  Output:
+    NODE_LINK (value="https://example.com")
+    ├─ NODE_TEXT "my "
+    └─ NODE_BOLD
+        └─ NODE_TEXT "link"
+
+WHY NEEDED
+  - Parse hyperlinks
+  - Support formatted link text
+  - Extract and store URLs
+
+USAGE EXAMPLES
+  Called from parse_inline() when sees [
+
+CALLED BY
+  parse_inline(): when token is LBRACKET
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *parse_image(Parser *p)
+Location: line 645
+Return type: ASTNode * (NODE_IMAGE or NULL)
+
+PURPOSE
+  Parse markdown image ![alt](url)
+
+PARAMETERS
+  p: Parser at !
+
+RETURN VALUE
+  NODE_IMAGE with alt text as children and URL in value
+  OR NULL if invalid
+
+WHAT IT DOES
+  1. Save position (for backtracking)
+  2. Consume !, then [
+  3. Parse inline until ]:
+     - Alt text content
+  4. Consume ]
+  5. Consume (
+  6. Collect text until ) as URL
+  7. Consume )
+  8. Create NODE_IMAGE
+  9. Store URL in value
+  10. Return image node
+  
+  If any step fails:
+     - Backtrack
+     - Return NULL
+
+EXAMPLE EXECUTION
+  Input: ![my **image**](example.png)
+  Output:
+    NODE_IMAGE (value="example.png")
+    ├─ NODE_TEXT "my "
+    └─ NODE_BOLD
+        └─ NODE_TEXT "image"
+
+WHY NEEDED
+  - Parse image references
+  - Support formatted alt text
+  - Extract and store image paths
+
+USAGE EXAMPLES
+  Called from parse_inline() when sees ![
+
+CALLED BY
+  parse_inline(): when token is BANG followed by LBRACKET
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *parse_inline_code(Parser *p)
+Location: line 722
+Return type: ASTNode * (NODE_CODE_INLINE)
+
+PURPOSE
+  Parse inline code `code`
+
+PARAMETERS
+  p: Parser at opening `
+
+RETURN VALUE
+  NODE_CODE_INLINE with code stored in value
+  OR raw text if no closing backtick
+
+WHAT IT DOES
+  1. Save position
+  2. Consume opening `
+  3. Collect tokens until closing `
+  4. If found closing `:
+     - Create NODE_CODE_INLINE
+     - Store code in value
+     - Return node
+  5. If no closing `:
+     - Backtrack
+     - Return as raw text
+     - Shows backtick as visible character
+
+WHY NEEDED
+  - Parse inline code
+  - Preserve exact code content
+  - Graceful fallback if unmatched
+
+USAGE EXAMPLES
+  `print('hello')`
+  Result: NODE_CODE_INLINE (value="print('hello')")
+
+CALLED BY
+  parse_inline(): when sees TOK_BACKTICK
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *parse_math_inline(Parser *p, int delimiter_type)
+Location: line 748
+Return type: ASTNode * (NODE_MATH_INLINE)
+
+PURPOSE
+  Parse inline math $x^2$
+
+PARAMETERS
+  p: Parser at opening delimiter
+  delimiter_type: Delimiter type (TOK_DOLLAR for $)
+
+RETURN VALUE
+  NODE_MATH_INLINE with LaTeX source in value
+
+WHAT IT DOES
+  Similar to parse_inline_code:
+  1. Consume opening delimiter
+  2. Collect tokens until closing delimiter
+  3. If found: create NODE_MATH_INLINE, store content
+  4. If not found: backtrack, return as text
+
+WHY NEEDED
+  - Parse math expressions
+  - Preserve LaTeX source
+  - Support inline equations
+
+USAGE EXAMPLES
+  $x^2 + y^2 = r^2$
+
+CALLED BY
+  parse_inline(): when sees TOK_DOLLAR
+
+────────────────────────────────────────────────────────────────────────────
+
+
+================================================================================
+SECTION 8: TEXT UTILITY FUNCTIONS
+================================================================================
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static ASTNode *make_raw_text_from_tokens(Parser *p, int start_pos, int end_pos, int preserve_newlines)
+Location: line 601
+Return type: ASTNode * (NODE_TEXT)
+
+PURPOSE
+  Convert raw token range to text node without interpretation
+
+PARAMETERS
+  p: Parser
+  start_pos, end_pos: Range of token positions
+  preserve_newlines: 1 to include \n, 0 to skip them
+
+RETURN VALUE
+  NODE_TEXT with concatenated token values
+
+WHAT IT DOES
+  1. Create NODE_TEXT
+  2. Loop through tokens start to end
+  3. For each token:
+     - If NEWLINE and preserve_newlines: append \n
+     - Otherwise: append token value to node.value
+  4. Null-terminate
+  5. Return node
+
+WHY NEEDED
+  - Collect raw text from tokens
+  - Used when no markdown interpretation needed
+  - Backtracking in emphasis/links/code
+  - Code and math blocks
+
+USAGE EXAMPLES
+  Used in parse_emphasis() for backtracking
+  Used in parse_code_block() for content
+  Used in parse_link() for URL extraction
+
+CALLED BY
+  parse_emphasis(): when backtracking
+  parse_inline_code(): for fallback
+  parse_link(): for URL extraction
+  parse_image(): for URL extraction
+  parse_code_block(): for content lines
+  parse_block_math(): for content lines
+
+────────────────────────────────────────────────────────────────────────────
+
+
+================================================================================
+SECTION 9: LATEX GENERATION FUNCTIONS
+================================================================================
+
+These functions convert AST nodes to LaTeX code.
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static void escape_latex(const char *text, FILE *out)
+Location: line 1106
+Return type: void
+
+PURPOSE
+  Escape special LaTeX characters when outputting text
+
+PARAMETERS
+  text: Text to escape (from node.value)
+  out: Output file
+
+RETURN VALUE
+  None (writes to file)
+
+WHAT IT DOES
+  Character-by-character translation:
+  ├─ \ → \textbackslash{}
+  ├─ { → \{
+  ├─ } → \}
+  ├─ # → \#
+  ├─ $ → \$
+  ├─ % → \%
+  ├─ & → \&
+  ├─ _ → \_
+  ├─ ^ → \^{}
+  ├─ ~ → \~{}
+  └─ others → output unchanged
+
+WHY NEEDED
+  - LaTeX interprets many characters specially
+  - Must escape or LaTeX compilation fails
+  - Prevents command injection via Markdown
+
+USAGE EXAMPLES
+  escape_latex("x = y & z > 0", out);
+  Output: "x = y \& z > 0"
+
+CALLED BY
+  emit_inline(): for NODE_TEXT
+  emit_inline(): for code, links, images
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static void emit_inline(ASTNode *node, FILE *out)
+Location: line 1149
+Return type: void
+
+PURPOSE
+  Convert inline AST node to LaTeX code
+
+PARAMETERS
+  node: Inline node to emit
+  out: Output file
+
+RETURN VALUE
+  None (writes to file)
+
+WHAT IT DOES
+  Switch on node type:
+  ├─ NODE_TEXT → escape_latex(value, out)
+  ├─ NODE_BOLD → \textbf{recurse children}
+  ├─ NODE_ITALIC → \emph{recurse children}
+  ├─ NODE_BOLD_ITALIC → \textbf{\emph{...}}
+  ├─ NODE_CODE_INLINE → \texttt{escaped value}
+  ├─ NODE_LINK → \href{url}{recurse text}
+  ├─ NODE_IMAGE → \includegraphics{url}
+  ├─ NODE_MATH_INLINE → $value$
+  ├─ NODE_MATH_BLOCK → \[value\]
+  └─ others → recurse children
+
+WHY NEEDED
+  - Core code generation for inline elements
+  - Converts semantic nodes to LaTeX syntax
+  - Handles recursion for nested content
+
+USAGE EXAMPLES
+  Called from emit_block() for inline children
+  Recursively called for nested emphasis
+
+CALLED BY
+  emit_block(): for heading and paragraph children
+  Itself (recursively): for nested content
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: static void emit_block(ASTNode *node, FILE *out)
+Location: line 1234
+Return type: void
+
+PURPOSE
+  Convert block AST node to LaTeX code
+
+PARAMETERS
+  node: Block node to emit
+  out: Output file
+
+RETURN VALUE
+  None (writes to file)
+
+WHAT IT DOES
+  Switch on node type:
+  ├─ NODE_DOCUMENT → emit boilerplate + recurse children
+  ├─ NODE_HEADING → \section/\subsection based on level
+  ├─ NODE_PARAGRAPH → text content + blank line
+  ├─ NODE_BLOCKQUOTE → \begin{quote}...recurse...\end{quote}
+  ├─ NODE_CODE_BLOCK → \begin{verbatim}...content...\end{verbatim}
+  ├─ NODE_LIST → \begin{itemize/enumerate}...items...\end
+  ├─ NODE_TABLE → \begin{tabular}...cells...\end{tabular}
+  ├─ NODE_ITEM → \item followed by inline content
+  ├─ NODE_TABLE_ROW → cells separated by &
+  ├─ NODE_TABLE_CELL → inline content
+  └─ others → recurse children
+
+BOILERPLATE (NODE_DOCUMENT)
+  \documentclass{article}
+  \usepackage[utf8]{inputenc}
+  \usepackage[T1]{fontenc}
+  \usepackage{lmodern}
+  \usepackage{hyperref}
+  \usepackage{graphicx}
+  \setlength{\parindent}{0pt}
+  \setlength{\parskip}{0.8\baselineskip}
+  
+  \begin{document}
+  [content]
+  \end{document}
+
+WHY NEEDED
+  - Core code generation for blocks
+  - Converts entire document structure to LaTeX
+  - Handles document-level setup
+
+USAGE EXAMPLES
+  Called from generate_latex() entry point
+
+CALLED BY
+  generate_latex(): for root
+  Itself (recursively): for nested blocks
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: void generate_latex(ASTNode *root, FILE *out)
+Location: End of file (public interface)
+Return type: void
+
+PURPOSE
+  Entry point for LaTeX generation (public API)
+
+PARAMETERS
+  root: AST root (NODE_DOCUMENT)
+  out: Output file for LaTeX code
+
+RETURN VALUE
+  None (writes to file)
+
+WHAT IT DOES
+  Simply calls: emit_block(root, out)
+
+WHY NEEDED
+  - Wrapper for consistency
+  - Hides internal emit_* functions
+  - Clean public interface
+
+USAGE EXAMPLES
+  Called from main.c after parsing complete
+
+CALLED BY
+  main.c: after parse_document() returns
+
+────────────────────────────────────────────────────────────────────────────
+
+Function: void print_ast(ASTNode *node, int indent)
+Location: End of file (optional debug)
+Return type: void
+
+PURPOSE
+  Print AST tree in human-readable format (debugging)
+
+PARAMETERS
+  node: Node to print
+  indent: Current indentation level
+
+RETURN VALUE
+  None (prints to stdout)
+
+WHAT IT DOES
+  1. Indent by level
+  2. Print node type and relevant info
+  3. Recursively print children with indent+1
+
+OUTPUT EXAMPLE
+  DOCUMENT
+    HEADING (level=1)
+      TEXT: Hello
+    PARAGRAPH
+      TEXT: This is 
+      BOLD
+        TEXT: bold
+
+WHY NEEDED
+  - Debug/visualization of AST
+  - Not used in normal parsing
+  - Helpful for testing and understanding structure
+
+USAGE EXAMPLES
+  Can be called instead of generate_latex() for debugging
+  // print_ast(root, 0);  // currently commented in main.c
+
+CALLED BY
+  Optional, could be called from main.c for debugging
+
+────────────────────────────────────────────────────────────────────────────
+
+
+================================================================================
+SUMMARY TABLE: FUNCTIONS BY CATEGORY
+================================================================================
+
+CORE UTILITIES (3 functions)
+  peek()          - Look at current token
+  advance()       - Move to next token
+  match()         - Check and consume token
+
+AST MANAGEMENT (4 functions)
+  create_node()   - Allocate new node
+  add_child()     - Attach child to parent
+  free_ast()      - Deallocate tree
+  trim_trailing_whitespace() - STUB (text formatting removed)
+
+TOKEN CLASSIFICATION (4 functions)
+  is_whitespace_text()     - Is token only spaces?
+  is_list_marker_token()   - Is token a list marker?
+  is_emphasis_token()      - Is token emphasis?
+  node_type_for_emphasis() - Map token → node type
+
+LOOKAHEAD/PREDICTION (7 functions)
+  peek_code_block()        - Is next code block?
+  peek_block_math()        - Is next math block?
+  peek_blockquote()        - Is next blockquote?
+  peek_list_marker()       - Is next list marker?
+  peek_table_row()         - Does line have pipes?
+  peek_table()             - Is complete table?
+
+TABLE PARSING (7 functions)
+  get_line_end()           - Find end of line
+  line_has_pipe()          - Does line have pipe?
+  collect_separator_segment() - Extract segment text
+  segment_is_table_separator() - Is valid separator?
+  is_table_separator_line() - Is valid separator row?
+  alignment_for_segment()  - Get alignment code
+  parse_table_alignment()  - Build alignment string
+
+BLOCK PARSERS (9 functions)
+  parse_document()         - Parse entire document
+  parse_block()            - Dispatch block type
+  parse_heading()          - Parse # Heading
+  parse_paragraph()        - Parse plain text
+  parse_list()             - Parse list (wrapper)
+  parse_list_at()          - Parse list with nesting
+  parse_table()            - Parse markdown table
+  parse_table_row()        - Parse single row
+  parse_code_block()       - Parse ``` code ```
+  parse_blockquote()       - Parse > quote
+  parse_block_math()       - Parse $$ math $$
+
+INLINE PARSERS (9 functions)
+  parse_inline()           - Dispatch inline type
+  parse_inline_until()     - Parse until token
+  parse_text()             - Parse plain text
+  parse_emphasis()         - Parse **bold** etc
+  parse_bold()             - Parse ** bold **
+  parse_link()             - Parse [text](url)
+  parse_image()            - Parse ![alt](url)
+  parse_inline_code()      - Parse `code`
+  parse_math_inline()      - Parse $math$
+
+TEXT UTILITIES (1 function)
+  make_raw_text_from_tokens() - Join tokens to text
+
+LATEX GENERATION (4 functions)
+  escape_latex()           - Escape special chars
+  emit_inline()            - Convert inline → LaTeX
+  emit_block()             - Convert block → LaTeX
+  generate_latex()         - Public API entry
+
+DEBUG (1 function)
+  print_ast()              - Print AST tree
+
+TOTAL: 48 functions
+
+================================================================================
+                            END OF REFERENCE
+================================================================================

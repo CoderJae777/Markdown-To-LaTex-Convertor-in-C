@@ -58,9 +58,7 @@ static Token *peek(Parser *p)
 
 static Token *advance(Parser *p)
 {
-    if (p->pos < p->tokens->count)
-        p->pos++;
-    return &p->tokens->tokens[p->pos - 1];
+    return &p->tokens->tokens[p->pos++];
 }
 
 static int match(Parser *p, int type)
@@ -89,24 +87,7 @@ static void free_ast(ASTNode *node);
 
 static void trim_trailing_whitespace(ASTNode *parent)
 {
-    if (parent->child_count == 0)
-        return;
-
-    ASTNode *last = parent->children[parent->child_count - 1];
-    if (last->type != NODE_TEXT)
-        return;
-
-    int len = strlen(last->value);
-    while (len > 0 && (last->value[len - 1] == ' ' || last->value[len - 1] == '\t'))
-    {
-        last->value[--len] = '\0';
-    }
-
-    if (len == 0)
-    {
-        parent->child_count--;
-        free(last);
-    }
+    // Parser should not format text - removed
 }
 
 static int is_whitespace_text(Token *t)
@@ -851,40 +832,12 @@ static ASTNode *parse_blockquote(Parser *p)
         advance(p);
 
         if (peek(p)->type == TOK_TEXT && is_whitespace_text(peek(p)))
-        {
-            Token *space = peek(p);
-            if (space->value[0] == ' ')
-            {
-                if (strlen(space->value) == 1)
-                    advance(p);
-                else
-                    memmove(space->value, space->value + 1, strlen(space->value));
-            }
-        }
+            advance(p);
 
         ASTNode *paragraph = create_node(NODE_PARAGRAPH);
-        int first = 1;
-        while (peek(p)->type != TOK_NEWLINE &&
-               peek(p)->type != TOK_EOF)
-        {
-            int before = paragraph->child_count;
+        while (peek(p)->type != TOK_NEWLINE && peek(p)->type != TOK_EOF)
             parse_inline(p, paragraph);
 
-            if (first && paragraph->child_count > before)
-            {
-                ASTNode *child = paragraph->children[before];
-                if (child->type == NODE_TEXT)
-                {
-                    while (child->value[0] == ' ')
-                    {
-                        memmove(child->value, child->value + 1, strlen(child->value));
-                    }
-                }
-                first = 0;
-            }
-        }
-
-        trim_trailing_whitespace(paragraph);
         match(p, TOK_NEWLINE);
 
         if (paragraph->child_count > 0)
@@ -898,65 +851,21 @@ static ASTNode *parse_blockquote(Parser *p)
 
 static void add_child(ASTNode *parent, ASTNode *child)
 {
-    if (!child)
-        return;
-
-    // merge adjacent TEXT nodes
-    if (parent->child_count > 0)
-    {
-        ASTNode *last = parent->children[parent->child_count - 1];
-
-        if (last->type == NODE_TEXT && child->type == NODE_TEXT)
-        {
-            int last_len = strlen(last->value);
-
-            // prevent double spaces
-            if (last_len > 0 &&
-                last->value[last_len - 1] == ' ' &&
-                child->value[0] == ' ')
-            {
-                memmove(child->value, child->value + 1, strlen(child->value));
-            }
-
-            int remaining = 255 - strlen(last->value) - 1;
-            if (remaining > 0)
-            {
-                strncat(last->value, child->value, remaining);
-            }
-
-            free(child);
-            return;
-        }
-    }
-
-    int max_children = sizeof(parent->children) / sizeof(parent->children[0]);
-    if (parent->child_count < max_children)
+    if (child)
         parent->children[parent->child_count++] = child;
 }
 
-// entry point
 ASTNode *parse_document(Parser *p)
 {
     ASTNode *doc = create_node(NODE_DOCUMENT);
-
     while (peek(p)->type != TOK_EOF)
     {
-        int start_pos = p->pos;
-
         if (match(p, TOK_NEWLINE))
             continue;
-
         ASTNode *node = parse_block(p);
         if (node)
             add_child(doc, node);
-
-        if (p->pos == start_pos)
-        {
-            printf("Parser stuck at token %d, forcing advance\n", p->pos);
-            advance(p);
-        }
     }
-
     return doc;
 }
 
@@ -1000,80 +909,18 @@ ASTNode *parse_heading(Parser *p)
     Token *hash = advance(p);
     ASTNode *node = create_node(NODE_HEADING);
     node->level = strlen(hash->value);
-
-    // parse inline content
-    parse_inline_until_newline(p, node);
+    while (peek(p)->type != TOK_NEWLINE && peek(p)->type != TOK_EOF)
+        parse_inline(p, node);
     match(p, TOK_NEWLINE);
-
     return node;
 }
 
 ASTNode *parse_paragraph(Parser *p)
 {
     ASTNode *node = create_node(NODE_PARAGRAPH);
-    int first = 1;
-
-    while (peek(p)->type != TOK_NEWLINE &&
-           peek(p)->type != TOK_EOF)
-    {
-        int before = node->child_count;
-
+    while (peek(p)->type != TOK_NEWLINE && peek(p)->type != TOK_EOF)
         parse_inline(p, node);
-
-        // trim leading space on first TEXT node
-        if (first && node->child_count > before)
-        {
-            ASTNode *child = node->children[before];
-
-            if (child->type == NODE_TEXT)
-            {
-                while (child->value[0] == ' ')
-                {
-                    memmove(child->value,
-                            child->value + 1,
-                            strlen(child->value));
-                }
-            }
-
-            first = 0;
-        }
-    }
-
-    trim_trailing_whitespace(node);
     match(p, TOK_NEWLINE);
-
-    int has_content = 0;
-
-    for (int i = 0; i < node->child_count; i++)
-    {
-        ASTNode *c = node->children[i];
-
-        if (c->type != NODE_TEXT)
-        {
-            has_content = 1;
-            break;
-        }
-
-        // check if TEXT has any non-space character
-        for (int j = 0; c->value[j]; j++)
-        {
-            if (c->value[j] != ' ' && c->value[j] != '\t')
-            {
-                has_content = 1;
-                break;
-            }
-        }
-
-        if (has_content)
-            break;
-    }
-
-    if (!has_content)
-    {
-        free(node);
-        return NULL;
-    }
-
     return node;
 }
 
@@ -1084,33 +931,8 @@ ASTNode *parse_list(Parser *p)
 
 void parse_inline_until_newline(Parser *p, ASTNode *parent)
 {
-    int first = 1;
-
-    while (peek(p)->type != TOK_NEWLINE &&
-           peek(p)->type != TOK_EOF)
-    {
-        int before = parent->child_count;
-
+    while (peek(p)->type != TOK_NEWLINE && peek(p)->type != TOK_EOF)
         parse_inline(p, parent);
-
-        // trim leading space on first TEXT node
-        if (first && parent->child_count > before)
-        {
-            ASTNode *child = parent->children[before];
-
-            if (child->type == NODE_TEXT)
-            {
-                while (child->value[0] == ' ')
-                {
-                    memmove(child->value, child->value + 1, strlen(child->value));
-                }
-            }
-
-            first = 0;
-        }
-    }
-
-    trim_trailing_whitespace(parent);
 }
 
 static int is_emphasis_token(int type)

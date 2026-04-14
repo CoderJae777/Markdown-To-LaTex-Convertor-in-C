@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     ASTNode *root;
     FILE *out;
 
-    if (argc < 2)
+    if (argc < 2) // Makes sure it receives a file process
     {
         printf("Usage: %s <input.md>\n", argv[0]);
         return 1;
@@ -76,10 +76,10 @@ int main(int argc, char *argv[])
     */
     file_src = read_file(argv[1]);
 
-    lex(file_src, &tokens);
-    printf("Token count: %d\n", tokens.count);
+    lex(file_src, &tokens);                    // Will throw error of Error: cannot open file <name> || when file is not available
+    printf("Token count: %d\n", tokens.count); // This is just a status check of number of total tokens parsed
 
-    ensure_output_dir();
+    ensure_output_dir(); // Checks for valid permissions to create or access a folder ./output
 
     out = fopen("output/tokens.txt", "w");
     if (!out)
@@ -88,18 +88,18 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    print_tokens(&tokens, out);
-    fclose(out);
+    print_tokens(&tokens, out); // saves the tokens into a temp file by saving it into a txt file. Mainly for debugging
+    fclose(out);                // token.txt is done here and thus closed early.
 
     printf("Done. Token list written to output/tokens.txt (%d tokens)\n", tokens.count);
 
     printf("Starting parse...\n");
-    parser.tokens = &tokens;
+    parser.tokens = &tokens; // Parser is a way to store the TokenList as well as its current position
     parser.pos = 0;
 
-    root = parse_document(&parser);
+    root = parse_document(&parser); // At this point the ASTNode is initialized as root, with the parser holding the TokenList and a start point
 
-    print_ast(root, 0);
+    // print_ast(root, 0);
 
     out = fopen("output/output.tex", "w");
     if (!out)

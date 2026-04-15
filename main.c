@@ -3,6 +3,12 @@
 #include <stdlib.h> /* malloc, free */
 #include <sys/stat.h>
 #include <errno.h>
+#ifdef _WIN32
+#include <direct.h>
+#define MKDIR(path) _mkdir(path)
+#else
+#define MKDIR(path) mkdir((path), 0755)
+#endif
 #include "lexer.h" /* TokenList, lex(), print_tokens() */
 #include "parser.h"
 
@@ -49,7 +55,7 @@ static char *read_file(const char *path)
 static void ensure_output_dir(void)
 {
     /* This is to check for permissions of the output file, 0 means octal. 7 means owner can read write and execute, 5 means group can read and execute. 5 means others can read and execute*/
-    if (mkdir("output", 0755) == -1 && errno != EEXIST)
+    if (MKDIR("output") == -1 && errno != EEXIST)
     {
         perror("Error: cannot create output directory");
         exit(1);

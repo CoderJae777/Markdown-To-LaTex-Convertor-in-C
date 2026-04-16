@@ -23,7 +23,8 @@ static int is_special(char c)
            c == '\t' || /*Tab*/
            c == '>' ||
            c == '-' ||
-           c == '|';
+           c == '|' ||
+           c == '\\';
 }
 
 static void push(TokenList *list, int type, const char *value, int line, int col)
@@ -77,6 +78,7 @@ static void flush_text(TokenList *list, char *buf, int *len, int line, int col)
 */
 void lex(const char *src, TokenList *list)
 {
+
     char text_buf[MAX_TOKEN_VALUE];
     int text_len;
     int line, col;
@@ -266,6 +268,13 @@ void lex(const char *src, TokenList *list)
         {
             push(list, TOK_PIPE, "|", line, col);
             col++;
+        }
+        else if (c == '\\')
+        {
+            char unknown = (char)next;
+            push(list, TOK_TEXT, &unknown, line, col);
+            i += 1;
+            col += 2;
         }
     }
 

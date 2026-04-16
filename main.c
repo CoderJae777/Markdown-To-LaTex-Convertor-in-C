@@ -10,7 +10,8 @@
 #define MKDIR(path) mkdir((path), 0755)
 #endif
 #include "lexer.h" /* TokenList, lex(), print_tokens() */
-#include "parser.h"
+#include "parser_block.h"
+#include "parser_latex.h"
 
 static char *read_file(const char *path)
 {

@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
     ASTNode *root;
     FILE *out;
 
-    if (argc < 2) // Makes sure it receives a file process
+    if (argc != 2) // Requires exactly one input path beyond the program name
     {
         printf("Usage: %s <input.md>\n", argv[0]);
         return 1;

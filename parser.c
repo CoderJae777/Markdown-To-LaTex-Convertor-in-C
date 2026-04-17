@@ -1317,6 +1317,32 @@ static void emit_block(ASTNode *node, FILE *out)
             fputs("\\end{itemize}\n\n", out);
         break;
 
+    case NODE_ITEM:
+        fputs("\\item ", out);
+        for (int i = 0; i < node->child_count; i++)
+        {
+            ASTNode *child = node->children[i];
+            switch (child->type)
+            {
+            case NODE_TEXT:
+            case NODE_BOLD:
+            case NODE_ITALIC:
+            case NODE_BOLD_ITALIC:
+            case NODE_CODE_INLINE:
+            case NODE_LINK:
+            case NODE_IMAGE:
+            case NODE_MATH_INLINE:
+                emit_inline(child, out);
+                break;
+            default:
+                fputs("\n", out);
+                emit_block(child, out);
+                break;
+            }
+        }
+        fputs("\n", out);
+        break;
+
     case NODE_TABLE:
     {
         const char *align = node->value;

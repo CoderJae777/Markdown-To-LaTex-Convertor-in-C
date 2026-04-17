@@ -10,6 +10,7 @@ static int is_special(char c)
 {
     return c == '#' ||
            c == '*' ||
+           c == '_' ||
            c == '`' ||
            c == '[' ||
            c == ']' ||
@@ -21,7 +22,9 @@ static int is_special(char c)
            c == ' ' ||
            c == '\t' || /*Tab*/
            c == '>' ||
-           c == '-';
+           c == '-' ||
+           c == '|' ||
+           c == '\\';
 }
 
 static void push(TokenList *list, int type, const char *value, int line, int col)
@@ -75,6 +78,7 @@ static void flush_text(TokenList *list, char *buf, int *len, int line, int col)
 */
 void lex(const char *src, TokenList *list)
 {
+
     char text_buf[MAX_TOKEN_VALUE];
     int text_len;
     int line, col;
@@ -104,7 +108,11 @@ void lex(const char *src, TokenList *list)
         */
         if (!is_special(c))
         {
-            text_buf[text_len++] = c;
+            // text_buf[text_len++] = c;
+            if (text_len < MAX_TOKEN_VALUE - 1)
+            {
+                text_buf[text_len++] = c;
+            }
             col++;
             continue;
         }
@@ -125,15 +133,12 @@ void lex(const char *src, TokenList *list)
         }
         else if (c == ' ' || c == '\t')
         {
-            /* accumulate whitespace */
-            text_buf[text_len++] = c;
-            col++;
-            while (src[i + 1] == ' ' || src[i + 1] == '\t')
+            // treat whitespace as NORMAL text
+            if (text_len < MAX_TOKEN_VALUE - 1)
             {
-                text_buf[text_len++] = src[++i];
-                col++;
+                text_buf[text_len++] = c;
             }
-            flush_text(list, text_buf, &text_len, line, col);
+            col++;
         }
         else if (c == '*')
         {
@@ -155,6 +160,26 @@ void lex(const char *src, TokenList *list)
                 col++;
             }
         }
+        else if (c == '_')
+        {
+            if (next == '_' && after == '_')
+            {
+                push(list, TOK_TRIPLE_UNDERSCORE, "___", line, col);
+                i += 2;
+                col += 3;
+            }
+            else if (next == '_')
+            {
+                push(list, TOK_DOUBLE_UNDERSCORE, "__", line, col);
+                i += 1;
+                col += 2;
+            }
+            else
+            {
+                push(list, TOK_UNDERSCORE, "_", line, col);
+                col++;
+            }
+        }
         else if (c == '#')
         {
             /* count consecutive hashes */
@@ -172,7 +197,13 @@ void lex(const char *src, TokenList *list)
         }
         else if (c == '`')
         {
-            if (next == '`')
+            if (next == '`' && after == '`')
+            {
+                push(list, TOK_TRIPLE_BACKTICK, "```", line, col);
+                i += 2;
+                col += 3;
+            }
+            else if (next == '`')
             {
                 push(list, TOK_DOUBLE_TICK, "``", line, col);
                 i += 1;
@@ -233,6 +264,18 @@ void lex(const char *src, TokenList *list)
             push(list, TOK_DASH, "-", line, col);
             col++;
         }
+        else if (c == '|')
+        {
+            push(list, TOK_PIPE, "|", line, col);
+            col++;
+        }
+        else if (c == '\\')
+        {
+            char unknown = (char)next;
+            push(list, TOK_TEXT, &unknown, line, col);
+            i += 1;
+            col += 2;
+        }
     }
 
     /* flush any trailing text */
@@ -255,10 +298,18 @@ const char *token_type_name(int type)
         return "DOUBLE_STAR";
     case TOK_TRIPLE_STAR:
         return "TRIPLE_STAR";
+    case TOK_UNDERSCORE:
+        return "UNDERSCORE ";
+    case TOK_DOUBLE_UNDERSCORE:
+        return "DOUBLE_UNDERSCORE";
+    case TOK_TRIPLE_UNDERSCORE:
+        return "TRIPLE_UNDERSCORE";
     case TOK_BACKTICK:
         return "BACKTICK   ";
     case TOK_DOUBLE_TICK:
         return "DOUBLE_TICK";
+    case TOK_TRIPLE_BACKTICK:
+        return "TRIPLE_BACKTICK";
     case TOK_LBRACKET:
         return "LBRACKET   ";
     case TOK_RBRACKET:
@@ -279,6 +330,8 @@ const char *token_type_name(int type)
         return "GT         ";
     case TOK_DASH:
         return "DASH       ";
+    case TOK_PIPE:
+        return "PIPE       ";
     case TOK_EOF:
         return "EOF        ";
     default:

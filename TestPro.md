@@ -20,6 +20,61 @@ This is *italic with **nested bold** inside* it.
 This has **multiple** bold **words** in one line.
 This has *multiple* italic *words* in one line.
 
+This is **** (just four asterisks, should not render anything meaningful)
+This is ***just bold+italic markers but no content***
+This is **bold that never closes
+This is *italic that never closes
+This is ***bold and italic that never closes
+
+This is **bold with *italic inside but not closed properly**
+This is *italic with **bold inside but not closed properly*
+This is ***nested **bold inside italic*** (ambiguous nesting)
+
+This is **bold *italic **bold again*** back to italic* end**
+This is *italic **bold *italic again*** back to bold** end*
+
+This is `code with *asterisks* that should not render`
+This is `code with **bold markers** inside`
+This is `**everything inside code should stay literal**`
+
+This is **bold with `inline code` inside**
+This is *italic with `inline code` inside*
+This is ***bold italic with `code` inside***
+
+This is `code with **bold and *italic* mixed** inside`
+
+This is ***bold+italic with *nested italic* inside***
+This is ***bold+italic with **nested bold** inside***
+
+This is **bold with ***triple nested*** markers inside**
+This is *italic with ***triple nested*** markers inside*
+
+This is ********too many asterisks********
+This is * * spaced asterisks * * (should not render properly)
+
+This is **bold**and**bold** (no spaces between segments)
+This is *italic*and*italic* (no spaces)
+
+This is **bold *italic **deep nesting*** still bold**
+This is *italic **bold *deep nesting*** still italic*
+
+This is ***bold italic with mismatched **closures***
+This is **bold *italic*** (valid but tricky)
+
+This is **bold with *underscore italic* inside**
+This is *italic with **bold inside***
+
+This is **bold using underscores**
+This is ***bold italic using underscores***
+
+This is **mixing *underscore italic* and *asterisk italic***
+This is *mixing **underscore bold** and **asterisk bold***
+
+This is **bold with `code *inside* code` inside**
+
+This is `code with backtick \` inside` (may break depending on parser)
+
+
 ## 3. Paragraphs
 
 This is the first paragraph. It has multiple sentences. All on the same block of text with no blank line separating them.

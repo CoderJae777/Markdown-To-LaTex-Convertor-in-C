@@ -1,0 +1,776 @@
+================================================================================
+                      PARSER EXECUTION PATH MAPPING
+                    Block Detection → AST Building → Inline Parsing
+================================================================================
+
+OVERVIEW
+================================================================================
+
+The parser doesn't truly work in "two passes" as commonly thought.
+Instead, it uses a LAZY EVALUATION strategy:
+
+PASS 1: Block Structure Building (parse_block level)
+  - Determines block types
+  - Creates block nodes
+  - Collects inline content (WITHOUT YET PARSING IT)
+  - Returns block nodes to parent
+
+PASS 2: Inline Content Parsing (parse_inline level)
+  - Only happens when inline content is EMITTED (generate_latex)
+  - parse_inline() is called recursively during tree traversal
+  - Bold, italic, links processed at this point
+
+This is called "LAZY" because inline parsing is deferred until the AST
+is complete. The first pass sets up the structure, the second pass happens
+during code generation.
+
+
+DETAILED EXECUTION TRACE: INPUT EXAMPLE
+================================================================================
+
+EXAMPLE MARKDOWN
+  # Heading
+  
+  This is a **bold** paragraph.
+  
+  - List item
+
+LEXER OUTPUT (Token Stream in memory)
+  Position 0:  TOK_HASH          "#"
+  Position 1:  TOK_TEXT          "Heading"
+  Position 2:  TOK_NEWLINE
+  Position 3:  TOK_NEWLINE       (blank line)
+  Position 4:  TOK_TEXT          "This is a "
+  Position 5:  TOK_DOUBLE_STAR   "**"
+  Position 6:  TOK_TEXT          "bold"
+  Position 7:  TOK_DOUBLE_STAR   "**"
+  Position 8:  TOK_TEXT          " paragraph."
+  Position 9:  TOK_NEWLINE
+  Position 10: TOK_NEWLINE       (blank line)
+  Position 11: TOK_DASH          "-"
+  Position 12: TOK_TEXT          "List item"
+  Position 13: TOK_NEWLINE
+  Position 14: TOK_EOF
+
+
+BLOCK-LEVEL PARSING (PASS 1)
+================================================================================
+
+INITIAL STATE
+  main.c initializes:
+    Parser p
+    p.tokens = &tokens  (points to TokenList from lexer)
+    p.pos = 0           (current position in token stream)
+  
+  Calls: parse_document(&p)
+
+[CALL STACK DEPTH 1] parse_document(&p)
+  ├─ Creates: ASTNode *doc = create_node(NODE_DOCUMENT)
+  ├─ Initializes: doc.child_count = 0, doc.value = ""
+  ├─ Entry position: p.pos = 0
+  │
+  ├─ MAIN LOOP: while (peek(p)->type != TOK_EOF)
+  │
+  ├─ [Iteration 1] p.pos = 0
+  │   ├─ peek(p) returns &tokens[0] = TOK_HASH
+  │   ├─ token is not TOK_NEWLINE, so call parse_block(&p)
+  │   │
+  │   │   [CALL STACK DEPTH 2] parse_block(&p)
+  │   │   Entry: p.pos = 0, peek(p) = TOK_HASH
+  │   │   
+  │   │   Decision tree in parse_block():
+  │   │   ├─ Is peek_code_block(p)?
+  │   │   │   └─ Checks: skip whitespace, is next TOK_TRIPLE_BACKTICK?
+  │   │   │   └─ At pos 0: peek() = TOK_HASH (NOT ``` so FALSE)
+  │   │   ├─ Is peek_block_math(p)?
+  │   │   │   └─ Checks: skip whitespace, is next TOK_DOUBLE_DOL?
+  │   │   │   └─ At pos 0: peek() = TOK_HASH (NOT $$ so FALSE)
+  │   │   ├─ Is peek_blockquote(p)?
+  │   │   │   └─ Checks: skip whitespace, is next TOK_GT?
+  │   │   │   └─ At pos 0: peek() = TOK_HASH (NOT > so FALSE)
+  │   │   ├─ Is peek_table(p)?
+  │   │   │   └─ Checks: does line have pipes? is next line separator?
+  │   │   │   └─ At pos 0: no pipes, so FALSE
+  │   │   ├─ Is peek_list_marker(p)?
+  │   │   │   └─ Checks: skip whitespace, is next TOK_DASH, TOK_STAR, etc?
+  │   │   │   └─ At pos 0: peek() = TOK_HASH (not a marker, so FALSE)
+  │   │   ├─ Is next token TOK_HASH (heading)?
+  │   │   │   └─ YES! Call parse_heading(&p)
+  │   │   │
+  │   │   └─ [CALL STACK DEPTH 3] parse_heading(&p)
+  │   │       Entry: p.pos = 0, peek(p) = TOK_HASH
+  │   │       ├─ hash = advance(p)              [consumes TOK_HASH]
+  │   │       │   └─ p.pos++ (now p.pos = 1)
+  │   │       │   └─ Returns pointer to tokens[0]
+  │   │       ├─ node = create_node(NODE_HEADING)
+  │   │       ├─ node.level = strlen(hash->value) = strlen("#") = 1
+  │   │       ├─ PARSING INLINE: while (peek(p) != NEWLINE && != EOF)
+  │   │       │   └─ p.pos = 1, peek(p) = TOK_TEXT "Heading"
+  │   │       │   └─ Call parse_inline(&p, node)
+  │   │       │
+  │   │       │   [CALL STACK DEPTH 4] parse_inline(&p, node)
+  │   │       │   Entry: p.pos = 1, peek(p) = TOK_TEXT "Heading"
+  │   │       │   Dispatcher check:
+  │   │       │   ├─ Is it TOK_BANG LBRACKET (image)?    NO
+  │   │       │   ├─ Is it TOK_LBRACKET (link)?          NO
+  │   │       │   ├─ Is it TOK_BACKTICK (code)?          NO
+  │   │       │   ├─ Is it TOK_DOLLAR (math)?            NO
+  │   │       │   ├─ Is it emphasis (*, **, etc)?        NO
+  │   │       │   ├─ Is it TOK_TEXT?                     YES!
+  │   │       │   │   └─ Call parse_text(&p)
+  │   │       │   │       ├─ t = advance(p)              [consume TOK_TEXT]
+  │   │       │   │       │   └─ p.pos++ (now p.pos = 2)
+  │   │       │   │       ├─ Create NODE_TEXT
+  │   │       │   │       ├─ strcpy(text_node.value, "Heading")
+  │   │       │   │       └─ Return text_node
+  │   │       │   │
+  │   │       │   ├─ add_child(node, text_node)
+  │   │       │   │   └─ node.children[0] = text_node
+  │   │       │   │   └─ node.child_count = 1
+  │   │       │   └─ Return from parse_inline
+  │   │       │
+  │   │       │   [CONTINUE HEADING PARSE]
+  │   │       │   ├─ Loop condition: p.pos = 2, peek(p) = TOK_NEWLINE
+  │   │       │   ├─ peek(p)->type == NEWLINE, so EXIT inline loop
+  │   │       ├─ match(p, TOK_NEWLINE)          [consume NEWLINE]
+  │   │       │   └─ p.pos++ (now p.pos = 3)
+  │   │       └─ Return node (NODE_HEADING with 1 child: NODE_TEXT "Heading")
+  │   │
+  │   ├─ add_child(doc, heading_node)
+  │   │   └─ doc.children[0] = heading_node
+  │   │   └─ doc.child_count = 1
+  │   ├─ Exit parse_block, return to parse_document
+  │   │
+  │   └─ [Loop iteration 1 complete]
+  │
+  ├─ [Iteration 2] p.pos = 3
+  │   ├─ peek(p) = TOK_NEWLINE (blank line)
+  │   ├─ match(p, TOK_NEWLINE) succeeds, skips it
+  │   │   └─ p.pos++ (now p.pos = 4)
+  │   ├─ Continue loop
+  │   │
+  │   └─ [Loop iteration 2 complete]
+  │
+  ├─ [Iteration 3] p.pos = 4
+  │   ├─ peek(p) = TOK_TEXT "This is a "
+  │   ├─ Not TOK_NEWLINE, so call parse_block(&p)
+  │   │
+  │   │   [CALL STACK DEPTH 2] parse_block(&p) [AGAIN]
+  │   │   Entry: p.pos = 4
+  │   │   Decision tree:
+  │   │   ├─ No special markers, default to parse_paragraph(&p)
+  │   │   │
+  │   │   │   [CALL STACK DEPTH 3] parse_paragraph(&p)
+  │   │   │   Entry: p.pos = 4, peek(p) = TOK_TEXT "This is a "
+  │   │   │   ├─ node = create_node(NODE_PARAGRAPH)
+  │   │   │   ├─ PARSING INLINE: while (peek(p) != NEWLINE && != EOF)
+  │   │   │   │   ├─ Loop iteration 1: p.pos = 4, peek(p) = TOK_TEXT "This is a "
+  │   │   │   │   │   └─ Call parse_inline(&p, node)   [parse_text]
+  │   │   │   │   │   └─ Add NODE_TEXT child "This is a "
+  │   │   │   │   │   └─ p.pos = 5
+  │   │   │   │   │
+  │   │   │   │   ├─ Loop iteration 2: p.pos = 5, peek(p) = TOK_DOUBLE_STAR
+  │   │   │   │   │   └─ Call parse_inline(&p, node)   [emphasis!]
+  │   │   │   │   │   │
+  │   │   │   │   │   [CALL STACK DEPTH 4] parse_inline(&p, node)
+  │   │   │   │   │   Dispatcher:
+  │   │   │   │   │   ├─ Is it emphasis token?  YES (TOK_DOUBLE_STAR)
+  │   │   │   │   │   │   └─ Call parse_emphasis(&p, TOK_DOUBLE_STAR, NODE_BOLD, &valid)
+  │   │   │   │   │   │
+  │   │   │   │   │   [CALL STACK DEPTH 5] parse_emphasis(&p, TOK_DOUBLE_STAR, NODE_BOLD, ...)
+  │   │   │   │   │   Entry: p.pos = 5, peek(p) = TOK_DOUBLE_STAR "**"
+  │   │   │   │   │   ├─ start_pos = 5 (for backtracking if needed)
+  │   │   │   │   │   ├─ match(p, TOK_DOUBLE_STAR)     [consume **]
+  │   │   │   │   │   │   └─ p.pos++ (now p.pos = 6)
+  │   │   │   │   │   ├─ node_emphasis = create_node(NODE_BOLD)
+  │   │   │   │   │   ├─ LOOP: while (peek(p) != TOK_DOUBLE_STAR and not EOF/NEWLINE)
+  │   │   │   │   │   │   ├─ p.pos = 6, peek(p) = TOK_TEXT "bold"
+  │   │   │   │   │   │   ├─ Call parse_inline(&p, node_emphasis)
+  │   │   │   │   │   │   │   └─ [parse_text again]
+  │   │   │   │   │   │   │   └─ Add NODE_TEXT "bold" to emphasis node
+  │   │   │   │   │   │   │   └─ p.pos = 7
+  │   │   │   │   │   │   └─ Loop condition: peek(p) = TOK_DOUBLE_STAR → EXIT
+  │   │   │   │   │   ├─ match(p, TOK_DOUBLE_STAR)     [consume closing **]
+  │   │   │   │   │   │   └─ p.pos++ (now p.pos = 8)
+  │   │   │   │   │   ├─ *valid = 1  (successfully matched)
+  │   │   │   │   │   └─ Return node_emphasis (NODE_BOLD with child NODE_TEXT "bold")
+  │   │   │   │   │   │
+  │   │   │   │   │   └─ add_child(node, node_emphasis)
+  │   │   │   │   │   └─ paragraph now has [TEXT "This is a ", BOLD, ...]
+  │   │   │   │   │   └─ p.pos = 8
+  │   │   │   │   │
+  │   │   │   │   ├─ Loop iteration 3: p.pos = 8, peek(p) = TOK_TEXT " paragraph."
+  │   │   │   │   │   └─ Call parse_inline(&p, node)
+  │   │   │   │   │   └─ Add NODE_TEXT " paragraph."
+  │   │   │   │   │   └─ p.pos = 9
+  │   │   │   │   │
+  │   │   │   │   └─ Loop iteration 4: p.pos = 9, peek(p) = TOK_NEWLINE → EXIT
+  │   │   │   ├─ match(p, TOK_NEWLINE)          [consume NEWLINE]
+  │   │   │   │   └─ p.pos++ (now p.pos = 10)
+  │   │   │   └─ Return node (NODE_PARAGRAPH with 3 children)
+  │   │
+  │   ├─ add_child(doc, para_node)
+  │   │   └─ doc.children[1] = para_node
+  │   │   └─ doc.child_count = 2
+  │   │
+  │   └─ [Loop iteration 3 complete]
+  │
+  ├─ [Iteration 4] p.pos = 10
+  │   ├─ peek(p) = TOK_NEWLINE (blank line)
+  │   ├─ match(p, TOK_NEWLINE) skips it
+  │   │   └─ p.pos++ (now p.pos = 11)
+  │   │
+  │   └─ [Loop iteration 4 complete]
+  │
+  ├─ [Iteration 5] p.pos = 11
+  │   ├─ peek(p) = TOK_DASH
+  │   ├─ Not TOK_NEWLINE, so call parse_block(&p)
+  │   │
+  │   │   [CALL STACK DEPTH 2] parse_block(&p) [AGAIN]
+  │   │   Entry: p.pos = 11, peek(p) = TOK_DASH
+  │   │   Decision tree:
+  │   │   ├─ Is peek_list_marker(p)?
+  │   │   │   ├─ Scans ahead: pos 11 = TOK_DASH, has no leading whitespace
+  │   │   │   ├─ Confirms marker at indent 0
+  │   │   │   └─ Returns 1 (TRUE)
+  │   │   ├─ Call parse_list(&p)
+  │   │   │
+  │   │   │   [CALL STACK DEPTH 3] parse_list(&p)
+  │   │   │   Entry: p.pos = 11
+  │   │   │   └─ Call parse_list_at(&p, 0)  [base_indent = 0]
+  │   │   │
+  │   │   │   [CALL STACK DEPTH 4] parse_list_at(&p, 0)
+  │   │   │   Entry: p.pos = 11, base_indent = 0
+  │   │   │   ├─ list_node = create_node(NODE_LIST)
+  │   │   │   ├─ list_node.ordered = 0  (dash = unordered)
+  │   │   │   ├─ LOOP: while (peek_list_marker at indent 0)
+  │   │   │   │   ├─ Iteration 1: p.pos = 11, confirms marker at indent 0
+  │   │   │   │   ├─ Advance to position 11 (already there)
+  │   │   │   │   ├─ advance(p)          [consume TOK_DASH]
+  │   │   │   │   │   └─ p.pos++ (now p.pos = 12)
+  │   │   │   │   ├─ item_node = create_node(NODE_ITEM)
+  │   │   │   │   ├─ parse_inline_until_newline(&p, item_node)
+  │   │   │   │   │   └─ p.pos = 12, peek(p) = TOK_TEXT "List item"
+  │   │   │   │   │   └─ Call parse_inline(&p, item_node)
+  │   │   │   │   │   └─ Add NODE_TEXT "List item"
+  │   │   │   │   │   └─ p.pos = 13
+  │   │   │   │   │   └─ Loop condition: peek(p) = TOK_NEWLINE → EXIT
+  │   │   │   │   ├─ match(p, TOK_NEWLINE)
+  │   │   │   │   │   └─ p.pos++ (now p.pos = 14)
+  │   │   │   │   ├─ add_child(list_node, item_node)
+  │   │   │   │   │
+  │   │   │   │   ├─ Iteration 2: p.pos = 14, peek(p) = TOK_EOF
+  │   │   │   │   │   ├─ Check peek_list_marker: no more text, FALSE
+  │   │   │   │   │   └─ EXIT loop
+  │   │   │   ├─ Return list_node (NODE_LIST with 1 child: NODE_ITEM)
+  │   │
+  │   ├─ add_child(doc, list_node)
+  │   │   └─ doc.children[2] = list_node
+  │   │   └─ doc.child_count = 3
+  │   │
+  │   └─ [Loop iteration 5 complete]
+  │
+  ├─ [EOF REACHED] p.pos = 14, peek(p) = TOK_EOF
+  │   └─ Loop condition: peek(p)->type != TOK_EOF → FALSE
+  │   └─ EXIT main loop
+  │
+  └─ Return doc (NODE_DOCUMENT with 3 children)
+
+BLOCK PARSING COMPLETE
+  Exit: p.pos = 14 (at end of token stream)
+  Return: AST tree structure in memory
+
+
+AST STRUCTURE IN MEMORY AFTER BLOCK PARSING
+================================================================================
+
+The AST is now fully built in memory as a tree of nodes:
+
+NODE_DOCUMENT (child_count = 3)
+├─ child[0]: NODE_HEADING (level = 1, child_count = 1)
+│   └─ child[0]: NODE_TEXT (value = "Heading")
+│
+├─ child[1]: NODE_PARAGRAPH (child_count = 3)
+│   ├─ child[0]: NODE_TEXT (value = "This is a ")
+│   ├─ child[1]: NODE_BOLD (child_count = 1)
+│   │   └─ child[0]: NODE_TEXT (value = "bold")
+│   └─ child[2]: NODE_TEXT (value = " paragraph.")
+│
+└─ child[2]: NODE_LIST (ordered = 0, child_count = 1)
+    └─ child[0]: NODE_ITEM (child_count = 1)
+        └─ child[0]: NODE_TEXT (value = "List item")
+
+
+KEY OBSERVATION: NO PASS 2 YET NEEDED!
+================================================================================
+
+Notice that emphasis parsing (bold **bold**) already happened during
+BLOCK parsing. This is because parse_inline() is called from within
+parse_heading() and parse_paragraph().
+
+So where does "Pass 2" happen?
+
+
+ANSWER: LAZY STORAGE, NOT LAZY PARSING
+================================================================================
+
+The two "passes" are CONCEPTUAL, not temporal:
+
+PASS 1 (parse_* functions):
+  - All parsing happens here
+  - Both block structure AND inline content parsed
+  - Inline parsing called WITHIN block parsers
+  - Example: parse_paragraph() calls parse_inline() in its loop
+
+  Location in code:
+    parse_document() → parse_block() → parse_paragraph()
+                                     ↓
+                              parse_inline() [inline parsing]
+
+PASS 2 (generate_latex function):
+  - NOT parsing, just TRAVERSAL
+  - emit_block() and emit_inline() walk the AST
+  - convert each node type to LaTeX syntax
+  - already parsed nodes emit their LaTeX representation
+
+  Location in code:
+    generate_latex(root) → emit_block(node)
+                          ↓
+                     emit_inline(node) [for inline content]
+
+
+What was confusing: "Two Passes" really means:
+  PASS 1: STRUCTURAL PARSING (organize tokens into tree)
+  PASS 2: CODE GENERATION (tree to LaTeX)
+
+NOT:
+  PASS 1: Parse blocks
+  PASS 2: Parse inline
+
+The inline parsing is WITHIN pass 1.
+
+
+WHY THIS DESIGN?
+================================================================================
+
+Advantages of parsing inline content immediately:
+
+1. CONTEXT AWARENESS
+   When parsing emphasis, you know the parent context (paragraph vs heading)
+   This allows different rendering rules if needed
+
+2. MEMORY EFFICIENCY
+   No need to store raw tokens or unparsed strings
+   Parsed structure is already small
+
+3. SEMANTIC VALIDATION
+   Can enforce nesting rules during parsing
+   Example: ensure **bold *italic*** has valid nesting
+
+4. ERROR DETECTION
+   Unmatched emphasis found immediately
+   Can backtrack at parse time, not at generation time
+
+Disadvantages avoided:
+
+✗ No need to reparse tokens
+✗ No need to store intermediate representations
+✗ No accumulation of temporary data structures
+
+
+DETAILED FLOW: INLINE PARSING WITHIN BLOCKS
+================================================================================
+
+When parse_paragraph() calls parse_inline():
+
+parse_paragraph(Parser *p)
+  ├─ node = create_node(NODE_PARAGRAPH)
+  ├─ while (peek(p)->type != TOK_NEWLINE && != TOK_EOF)
+  │   │
+  │   └─ parse_inline(p, node)
+  │       ├─ Check token type dispatcher
+  │       ├─ Route to appropriate parser:
+  │       │   ├─ parse_text()
+  │       │   ├─ parse_bold()  [calls parse_emphasis]
+  │       │   ├─ parse_italic()  [calls parse_emphasis]
+  │       │   ├─ parse_link()
+  │       │   ├─ parse_image()
+  │       │   ├─ parse_inline_code()
+  │       │   ├─ parse_math_inline()
+  │       │   └─ [fallback to parse_text]
+  │       │
+  │       └─ Inline node created and added to paragraph
+  │
+  └─ Return paragraph with all children parsed
+
+
+SECOND TRAVERSAL: CODE GENERATION (Not really "parsing")
+================================================================================
+
+After parse_document() returns, main.c calls:
+
+  generate_latex(root_ast, output_file)
+    ├─ emit_block(root_ast, output_file)
+    │   ├─ Switch on node->type
+    │   ├─ Route to appropriate emitter:
+    │   │   ├─ NODE_DOCUMENT → emit boilerplate + recurse children
+    │   │   ├─ NODE_HEADING → emit \section{...} level
+    │   │   ├─ NODE_PARAGRAPH → emit as plain text + newlines
+    │   │   ├─ NODE_LIST → emit \begin{itemize/enumerate}
+    │   │   ├─ NODE_TABLE → emit \begin{tabular}
+    │   │   └─ [etc for all block types]
+    │   │
+    │   └─ For each block's children, emit_block() recursively
+    │
+    └─ For inline children within blocks:
+       └─ emit_inline(child, output_file)
+           ├─ Switch on node->type
+           ├─ Route to appropriate emitter:
+           │   ├─ NODE_TEXT → write text to output
+           │   ├─ NODE_BOLD → write \textbf{...}
+           │   ├─ NODE_ITALIC → write \textit{...}
+           │   ├─ NODE_LINK → write \href{url}{text}
+           │   ├─ NODE_IMAGE → write \includegraphics{url}
+           │   ├─ NODE_CODE_INLINE → write \texttt{...}
+           │   └─ [etc for all inline types]
+           │
+           └─ For each node's children, recurse emit_inline()
+
+This is NOT PARSING, just TREE WALKING.
+
+The structure is already parsed. Just outputting it.
+
+
+MEMORY STORAGE EXPLAINED: HOW THE TREE PERSISTS
+================================================================================
+
+The AST is stored in dynamically allocated memory:
+
+Each node is allocated separately:
+  node = malloc(sizeof(ASTNode))
+
+Each node contains:
+  - type enum (which type of node)
+  - level int (for headings)
+  - ordered int (for lists)
+  - value char[256] (inline content)
+  - children[] array (pointers to child nodes)  [ARRAY OF POINTERS]
+  - child_count int
+
+Key: children[512] is an ARRAY OF POINTERS
+
+  ASTNode *node1 = malloc(sizeof(ASTNode))
+  ASTNode *node2 = malloc(sizeof(ASTNode))
+  ASTNode *node3 = malloc(sizeof(ASTNode))
+  
+  node1->children[0] = node2
+  node1->children[1] = node3
+  node1->child_count = 2
+
+Graph:
+  node1 (parent)
+    │
+    ├─→ node2 (child 1) [pointer stored in children[0]]
+    │
+    └─→ node3 (child 2) [pointer stored in children[1]]
+
+
+MEMORY LAYOUT VISUALIZATION
+================================================================================
+
+For our example document:
+
+BLOCK: NODE_DOCUMENT
+  Allocated at: 0x7FFF1000
+  ├─ type = NODE_DOCUMENT
+  ├─ child_count = 3
+  ├─ children[0] → 0x7FFF1100
+  ├─ children[1] → 0x7FFF1200
+  └─ children[2] → 0x7FFF1300
+
+BLOCK: NODE_HEADING (children[0])
+  Allocated at: 0x7FFF1100
+  ├─ type = NODE_HEADING
+  ├─ level = 1
+  ├─ child_count = 1
+  └─ children[0] → 0x7FFF1110 (inline NODE_TEXT)
+
+INLINE: NODE_TEXT "Heading"
+  Allocated at: 0x7FFF1110
+  ├─ type = NODE_TEXT
+  ├─ value = "Heading"
+  ├─ child_count = 0
+  └─ (no children)
+
+BLOCK: NODE_PARAGRAPH (children[1])
+  Allocated at: 0x7FFF1200
+  ├─ type = NODE_PARAGRAPH
+  ├─ child_count = 3
+  ├─ children[0] → 0x7FFF1210
+  ├─ children[1] → 0x7FFF1220
+  └─ children[2] → 0x7FFF1230
+
+INLINE: NODE_TEXT "This is a "
+  Allocated at: 0x7FFF1210
+  ├─ type = NODE_TEXT
+  ├─ value = "This is a "
+  └─ (no children)
+
+INLINE: NODE_BOLD (children[1] of paragraph)
+  Allocated at: 0x7FFF1220
+  ├─ type = NODE_BOLD
+  ├─ child_count = 1
+  └─ children[0] → 0x7FFF1221
+
+INLINE: NODE_TEXT "bold"
+  Allocated at: 0x7FFF1221
+  ├─ type = NODE_TEXT
+  ├─ value = "bold"
+  └─ (no children)
+
+[and so on for the third child and list...]
+
+
+EXECUTION PATH FOR INLINE BOLD
+================================================================================
+
+Tracing **bold** specifically:
+
+Token Stream around bold:
+  Position 4: TOK_TEXT          "This is a "
+  Position 5: TOK_DOUBLE_STAR   "**"
+  Position 6: TOK_TEXT          "bold"
+  Position 7: TOK_DOUBLE_STAR   "**"
+  Position 8: TOK_TEXT          " paragraph."
+
+When parse_inline() encounters position 5 (TOK_DOUBLE_STAR):
+
+  parse_inline(Parser *p, ASTNode *parent)  [parent = paragraph_node]
+    ├─ t = peek(p)
+    ├─ t->type == TOK_DOUBLE_STAR
+    ├─ is_emphasis_token(TOK_DOUBLE_STAR) → TRUE
+    │
+    ├─ Call parse_emphasis(&p, TOK_DOUBLE_STAR, NODE_BOLD, &valid)
+    │   Entry: p.pos = 5
+    │
+    │   [PARSE EMPHASIS]
+    │   ├─ start_pos = 5  (for backtracking)
+    │   ├─ match(p, TOK_DOUBLE_STAR)  [consume **]
+    │   │   └─ p.pos set to 6
+    │   ├─ emphasis_node = create_node(NODE_BOLD)
+    │   │
+    │   ├─ while (peek(p)->type != TOK_DOUBLE_STAR && ...)
+    │   │   p.pos = 6, peek(p) = TOK_TEXT "bold"
+    │   │
+    │   │   ├─ call parse_inline(p, emphasis_node)
+    │   │   │   └─ Sees TOK_TEXT
+    │   │   │   └─ Calls parse_text()
+    │   │   │   ├─ t = advance(p)  [consume TOK_TEXT]
+    │   │   │   │   └─ p.pos set to 7
+    │   │   │   ├─ text_node = create_node(NODE_TEXT)
+    │   │   │   ├─ strcpy(text_node.value, "bold")
+    │   │   │   └─ return text_node
+    │   │   │
+    │   │   └─ add_child(emphasis_node, text_node)
+    │   │       └─ emphasis_node.children[0] = text_node
+    │   │       └─ emphasis_node.child_count = 1
+    │   │
+    │   │   p.pos = 7, peek(p) = TOK_DOUBLE_STAR
+    │   │   Loop condition: peek(p) == TOK_DOUBLE_STAR → EXIT loop
+    │   │
+    │   ├─ match(p, TOK_DOUBLE_STAR)  [consume closing **]
+    │   │   └─ p.pos set to 8
+    │   │
+    │   ├─ *valid = 1  (successful match)
+    │   └─ return emphasis_node
+    │
+    ├─ add_child(parent, emphasis_node)  [add to paragraph]
+    │   └─ parent.children[1] = emphasis_node
+    │   └─ parent.child_count = 2
+    │
+    └─ return
+
+So emphasis node is:
+  NODE_BOLD (child_count = 1)
+  └─ NODE_TEXT "bold"
+
+This structure is then stored as parent.children[1].
+
+
+STORAGE AND RETRIEVAL: HOW IT STAYS IN TREE
+================================================================================
+
+When stored:
+  paragraph_node->children[1] = &emphasis_node
+                      ↑
+                     This is a POINTER to the NODE_BOLD object
+
+Later in generate_latex():
+
+  emit_block(paragraph_node)
+    ├─ Recognize type = NODE_PARAGRAPH
+    ├─ Output text content + newlines
+    ├─ For each child:
+    │   ├─ child = paragraph_node->children[0]  → NODE_TEXT
+    │   ├─ emit_inline(child)
+    │   │   └─ Output: "This is a "
+    │   │
+    │   ├─ child = paragraph_node->children[1]  → NODE_BOLD
+    │   ├─ emit_inline(child)
+    │   │   ├─ Recognize type = NODE_BOLD
+    │   │   ├─ Output: \textbf{
+    │   │   ├─ For each child of NODE_BOLD:
+    │   │   │   ├─ emit_inline(child)
+    │   │   │   │   └─ NODE_TEXT, output "bold"
+    │   │   ├─ Output: }
+    │   │
+    │   ├─ child = paragraph_node->children[2]  → NODE_TEXT
+    │   └─ emit_inline(child)
+    │       └─ Output: " paragraph."
+
+
+COMPLETE EXECUTION FLOW DIAGRAM
+================================================================================
+
+STAGE 1: LEXICAL ANALYSIS (LEXER)
+  Input: Raw Markdown text
+           ↓
+           Characters
+           ↓
+  Tokenization: Identify patterns
+           ↓
+  Output: Token stream (flat array of tokens)
+
+
+STAGE 2: SYNTACTIC ANALYSIS (PARSER) - SINGLE PASS
+  Input: Token stream
+           ↓
+           Parse blocks:
+           ├─ Determine block types (headings, paragraphs, lists)
+           ├─ Create NODE_BLOCK structs
+           ├─ For inline content in each block:
+           │   ├─ Parse inline elements
+           │   ├─ Determine inline types (text, bold, italic, links)
+           │   ├─ Create NODE_INLINE structs
+           │   └─ Attach to block node.children[]
+           └─ Attach block nodes to parent (document)
+           ↓
+  Output: Abstract Syntax Tree (tree of nodes in memory)
+           ↓
+           [AST persists in memory via pointer references]
+
+
+STAGE 3: CODE GENERATION (EMITTER)
+  Input: AST from memory
+           ↓
+           Traverse tree depth-first:
+           ├─ Visit each node
+           ├─ emit_block() for blocks:
+           │   └─ Output LaTeX block syntax
+           ├─ emit_inline() for inline:
+           │   └─ Output LaTeX inline syntax
+           └─ Recurse to children
+           ↓
+  Output: LaTeX document
+
+
+KEY INSIGHT: NO TRUE "PASS 2" FOR PARSING
+================================================================================
+
+Many students think: "First pass: parse blocks. Second pass: parse inline."
+
+REALITY: "Single pass: parse everything. Then traverse for emitting."
+
+The sequence is:
+  1. parse_document()
+     ├─ Calls parse_block()
+     │   ├─ Which calls parse_heading()
+     │   │   ├─ Which calls parse_inline()
+     │   │   │   └─ Which calls parse_emphasis()
+     │   │   │       └─ Which calls parse_inline() recursively
+     │   │   └─ Everything parsed RIGHT HERE
+     │   └─ Everything parsed RIGHT HERE
+     └─ Everything parsed RIGHT HERE
+  
+  2. generate_latex()
+     └─ Traverses the already-parsed tree
+
+
+Why the confusion?
+
+  Traditional compilers DO two passes:
+    Pass 1: Parse syntax into AST
+    Pass 2: Type check / semantic analysis
+  
+  This parser combines Pass 1 completely (no separate Pass 2 for parsing).
+  The "second traversal" is code generation, not parsing.
+
+
+BLOCK → INLINE DEPENDENCY
+================================================================================
+
+Why parse inline content WITHIN block parsers?
+
+Example: Emphasis can't span block boundaries
+
+  This is VALID Markdown:
+    This **bold text**
+    continues here.
+  
+  BUT this is NOT:
+    **This is bold
+    > but not across block boundary
+  
+  If bold started in paragraph, it should end in paragraph.
+  If it crosses to blockquote, it's just literal **. 
+
+  By parsing inline content WITHIN block context, this is automatic:
+    - parse_paragraph() calls parse_inline() until NEWLINE
+    - Bold delimiter found, tries to match
+    - If NEWLINE comes before closing **, emphasis fails
+    - Falls back to text
+
+This enforces semantic rule: "Inline formatting stays within blocks."
+
+If parser did "parse all blocks first, then all inline later":
+    - Would need complex rules for "which block owns this emphasis?"
+    - Ordering becomes ambiguous
+    - Nesting rules hard to enforce
+
+
+CONCLUSION: EXECUTION FLOW SUMMARY
+================================================================================
+
+The parser uses a SINGLE RECURSIVE DESCENT PASS that:
+
+1. BLOCK DISCOVERY (parse_block dispatcher)
+   ├─ Uses lookahead prediction (peek_* functions)
+   ├─ Determines correct block type
+   └─ Routes to appropriate block parser
+
+2. BLOCK PARSING (parse_heading, parse_paragraph, etc.)
+   ├─ Creates block node
+   ├─ Collects inline content immediately (not later)
+   └─ For each inline token: calls parse_inline()
+
+3. INLINE PARSING (parse_inline dispatcher + helpers)
+   ├─ Determines inline element type (text, bold, link, etc.)
+   ├─ Routes to appropriate inline parser
+   └─ Creates inline nodes, attaches to block as children
+
+4. AST STORAGE
+   ├─ Entire tree persists in memory
+   ├─ Connected via pointer chain (parent->children[i])
+   ├─ No re-parsing needed
+
+5. CODE GENERATION (generate_latex)
+   ├─ Traverses tree depth-first
+   ├─ emit_block() for block nodes
+   ├─ emit_inline() for inline nodes
+   └─ Outputs LaTeX syntax
+
+Result: Full document parsed and generated with single tree traversal.
+
+================================================================================
+                        END OF EXECUTION PATH MAPPING
+================================================================================

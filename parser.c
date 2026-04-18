@@ -168,6 +168,100 @@ static int peek_list_marker(Parser *p, int *indent, int *ordered, int *marker_po
     return 0;
 }
 
+static int peek_horizontal_rule(Parser *p)
+{
+    int pos = p->pos;
+    int seen = 0;
+    int rule_type = 0;
+
+    while (pos < p->tokens->count)
+    {
+        Token *tok = &p->tokens->tokens[pos];
+
+        if (tok->type == TOK_TEXT && is_whitespace_text(tok))
+        {
+            pos++;
+            continue;
+        }
+
+        if (tok->type == TOK_NEWLINE || tok->type == TOK_EOF)
+            break;
+
+        if (tok->type == TOK_DASH)
+        {
+            if (rule_type == 0 || rule_type == TOK_DASH)
+            {
+                rule_type = TOK_DASH;
+                seen++;
+                pos++;
+                continue;
+            }
+            return 0;
+        }
+
+        if (tok->type == TOK_STAR)
+        {
+            if (rule_type == 0 || rule_type == TOK_STAR)
+            {
+                rule_type = TOK_STAR;
+                seen++;
+                pos++;
+                continue;
+            }
+            return 0;
+        }
+
+        if (tok->type == TOK_UNDERSCORE)
+        {
+            if (rule_type == 0 || rule_type == TOK_UNDERSCORE)
+            {
+                rule_type = TOK_UNDERSCORE;
+                seen++;
+                pos++;
+                continue;
+            }
+            return 0;
+        }
+
+        if (tok->type == TOK_TRIPLE_STAR)
+        {
+            if (rule_type == 0 || rule_type == TOK_STAR)
+            {
+                rule_type = TOK_STAR;
+                seen += 3;
+                pos++;
+                continue;
+            }
+            return 0;
+        }
+
+        if (tok->type == TOK_TRIPLE_UNDERSCORE)
+        {
+            if (rule_type == 0 || rule_type == TOK_UNDERSCORE)
+            {
+                rule_type = TOK_UNDERSCORE;
+                seen += 3;
+                pos++;
+                continue;
+            }
+            return 0;
+        }
+
+        return 0;
+    }
+
+    return seen >= 3;
+}
+
+static ASTNode *parse_horizontal_rule(Parser *p)
+{
+    while (peek(p)->type != TOK_NEWLINE && peek(p)->type != TOK_EOF)
+        advance(p);
+
+    match(p, TOK_NEWLINE);
+    return create_node(NODE_HORIZONTAL_RULE);
+}
+
 // Forward declarations for functions used in parse_list_at
 static ASTNode *parse_code_block(Parser *p);
 
@@ -751,6 +845,9 @@ ASTNode *parse_block(Parser *p)
 
     if (peek_table(p))
         return parse_table(p);
+
+    if (peek_horizontal_rule(p))
+        return parse_horizontal_rule(p);
 
     if (peek_list_marker(p, NULL, NULL, NULL))
         return parse_list(p);

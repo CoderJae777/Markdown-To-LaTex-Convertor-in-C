@@ -216,6 +216,10 @@ static void emit_block(ASTNode *node, FILE *out)
             fputs("\\end{itemize}\n\n", out);
         break;
 
+    case NODE_HORIZONTAL_RULE:
+        fputs("\\noindent\\hrulefill\n\n", out);
+        break;
+
     case NODE_ITEM:
         fputs("\\item ", out);
         for (int i = 0; i < node->child_count; i++)
@@ -339,6 +343,9 @@ void print_ast(ASTNode *node, int indent)
         break;
     case NODE_LIST:
         printf("LIST\n");
+        break;
+    case NODE_HORIZONTAL_RULE:
+        printf("HORIZONTAL_RULE\n");
         break;
     case NODE_TABLE:
         printf("TABLE\n");

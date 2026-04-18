@@ -144,6 +144,7 @@ static void emit_block(ASTNode *node, FILE *out)
         fputs("\\usepackage{lmodern}\n", out);
         fputs("\\usepackage{hyperref}\n", out);
         fputs("\\usepackage{graphicx}\n", out);
+        fputs("\\usepackage{amsmath}\n", out);
         fputs("\\setlength{\\parindent}{0pt}\n", out);
         fputs("\\setlength{\\parskip}{0.8\\baselineskip}\n\n", out);
         fputs("\\begin{document}\n\n", out);

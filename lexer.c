@@ -72,20 +72,16 @@ static void flush_text(TokenList *list, char *buf, int *len, int line, int col)
 
 static int is_escapable_markdown_char(char c)
 {
-    return c == '#' ||
-           c == '*' ||
-           c == '_' ||
+    return c == '*' ||
            c == '`' ||
            c == '[' ||
            c == ']' ||
            c == '(' ||
            c == ')' ||
            c == '!' ||
-           c == '$' ||
            c == '>' ||
            c == '-' ||
-           c == '|' ||
-           c == '\\';
+           c == '|';
 }
 
 /*

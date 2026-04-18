@@ -1,11 +1,11 @@
 CC = gcc
 CFLAGS = -Wall
-SRCS = main.c lexer.c parser.c
+SRCS = main.c lexer.c parser.c parser_inline.c parser_latex.c
 TARGET = output/main.exe
 
 all: $(TARGET)
 
-$(TARGET): $(SRCS) lexer.h parser.h
+$(TARGET): $(SRCS) lexer.h parser.h parser_internal.h
 	mkdir -p output
 	$(CC) $(CFLAGS) $(SRCS) -o $(TARGET)
 

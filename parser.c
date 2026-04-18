@@ -49,19 +49,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "parser.h"
+#include "parser_internal.h"
 
-static Token *peek(Parser *p)
+Token *peek(Parser *p)
 {
     return &p->tokens->tokens[p->pos];
 }
 
-static Token *advance(Parser *p)
+Token *advance(Parser *p)
 {
     return &p->tokens->tokens[p->pos++];
 }
 
-static int match(Parser *p, int type)
+int match(Parser *p, int type)
 {
     if (peek(p)->type == type)
     {
@@ -71,7 +71,7 @@ static int match(Parser *p, int type)
     return 0;
 }
 
-static ASTNode *create_node(NodeType type)
+ASTNode *create_node(NodeType type)
 {
     ASTNode *node = (ASTNode *)malloc(sizeof(ASTNode));
     node->type = type;
@@ -82,8 +82,7 @@ static ASTNode *create_node(NodeType type)
     return node;
 }
 
-static void add_child(ASTNode *parent, ASTNode *child);
-static void free_ast(ASTNode *node);
+void add_child(ASTNode *parent, ASTNode *child);
 
 static void trim_trailing_whitespace(ASTNode *parent)
 {
@@ -362,8 +361,6 @@ static int peek_table_row(Parser *p)
     return line_has_pipe(p, p->pos, end);
 }
 
-static void parse_inline_until(Parser *p, ASTNode *parent, int end_type);
-
 static int peek_table(Parser *p)
 {
     if (!peek_table_row(p))
@@ -542,7 +539,7 @@ static int peek_code_block(Parser *p)
 }
 
 static int peek_block_math(Parser *p);
-static ASTNode *make_raw_text_from_tokens(Parser *p, int start_pos, int end_pos, int preserve_newlines);
+ASTNode *make_raw_text_from_tokens(Parser *p, int start_pos, int end_pos, int preserve_newlines);
 
 static int peek_block_math(Parser *p)
 {
@@ -598,7 +595,7 @@ static ASTNode *parse_block_math(Parser *p)
     return node;
 }
 
-static ASTNode *make_raw_text_from_tokens(Parser *p, int start_pos, int end_pos, int preserve_newlines)
+ASTNode *make_raw_text_from_tokens(Parser *p, int start_pos, int end_pos, int preserve_newlines)
 {
     ASTNode *node = create_node(NODE_TEXT);
     int len = 0;
@@ -629,145 +626,6 @@ static ASTNode *make_raw_text_from_tokens(Parser *p, int start_pos, int end_pos,
     }
 
     node->value[len] = '\0';
-    return node;
-}
-
-static void parse_inline_until(Parser *p, ASTNode *parent, int end_type)
-{
-    while (peek(p)->type != end_type &&
-           peek(p)->type != TOK_EOF &&
-           peek(p)->type != TOK_NEWLINE)
-    {
-        parse_inline(p, parent);
-    }
-}
-
-static ASTNode *parse_image(Parser *p)
-{
-    int start_pos = p->pos;
-
-    if (!match(p, TOK_BANG) || !match(p, TOK_LBRACKET))
-    {
-        p->pos = start_pos;
-        return NULL;
-    }
-
-    ASTNode *node = create_node(NODE_IMAGE);
-
-    parse_inline_until(p, node, TOK_RBRACKET);
-
-    if (!match(p, TOK_RBRACKET) || !match(p, TOK_LPAREN))
-    {
-        free_ast(node);
-        p->pos = start_pos;
-        return NULL;
-    }
-
-    int url_start = p->pos;
-    while (peek(p)->type != TOK_RPAREN && peek(p)->type != TOK_EOF)
-        advance(p);
-
-    if (!match(p, TOK_RPAREN))
-    {
-        free_ast(node);
-        p->pos = start_pos;
-        return NULL;
-    }
-
-    ASTNode *url_node = make_raw_text_from_tokens(p, url_start, p->pos - 1, 0);
-    strncpy(node->value, url_node->value, sizeof(node->value) - 1);
-    node->value[sizeof(node->value) - 1] = '\0';
-    free_ast(url_node);
-
-    return node;
-}
-
-static ASTNode *parse_link(Parser *p)
-{
-    int start_pos = p->pos;
-
-    if (!match(p, TOK_LBRACKET))
-        return NULL;
-
-    ASTNode *node = create_node(NODE_LINK);
-
-    parse_inline_until(p, node, TOK_RBRACKET);
-
-    if (!match(p, TOK_RBRACKET) || !match(p, TOK_LPAREN))
-    {
-        free_ast(node);
-        p->pos = start_pos;
-        return NULL;
-    }
-
-    int url_start = p->pos;
-    while (peek(p)->type != TOK_RPAREN && peek(p)->type != TOK_EOF)
-        advance(p);
-
-    if (!match(p, TOK_RPAREN))
-    {
-        free_ast(node);
-        p->pos = start_pos;
-        return NULL;
-    }
-
-    ASTNode *url_node = make_raw_text_from_tokens(p, url_start, p->pos - 1, 0);
-    strncpy(node->value, url_node->value, sizeof(node->value) - 1);
-    node->value[sizeof(node->value) - 1] = '\0';
-    free_ast(url_node);
-
-    return node;
-}
-
-static ASTNode *parse_inline_code(Parser *p)
-{
-    int start_pos = p->pos;
-    match(p, TOK_BACKTICK);
-
-    int content_start = p->pos;
-    while (peek(p)->type != TOK_BACKTICK &&
-           peek(p)->type != TOK_EOF &&
-           peek(p)->type != TOK_NEWLINE)
-    {
-        advance(p);
-    }
-
-    if (!match(p, TOK_BACKTICK))
-    {
-        return make_raw_text_from_tokens(p, start_pos, p->pos, 0);
-    }
-
-    ASTNode *node = create_node(NODE_CODE_INLINE);
-    ASTNode *text = make_raw_text_from_tokens(p, content_start, p->pos - 1, 0);
-    strncpy(node->value, text->value, sizeof(node->value) - 1);
-    node->value[sizeof(node->value) - 1] = '\0';
-    free_ast(text);
-    return node;
-}
-
-static ASTNode *parse_math_inline(Parser *p, int delimiter_type)
-{
-    int start_pos = p->pos;
-    match(p, delimiter_type);
-
-    int content_start = p->pos;
-    while (peek(p)->type != delimiter_type &&
-           peek(p)->type != TOK_EOF &&
-           peek(p)->type != TOK_NEWLINE)
-    {
-        advance(p);
-    }
-
-    if (!match(p, delimiter_type))
-    {
-        return make_raw_text_from_tokens(p, start_pos, p->pos, 0);
-    }
-
-    ASTNode *node = create_node(NODE_MATH_INLINE);
-    ASTNode *text = make_raw_text_from_tokens(p, content_start, p->pos - 1, 0);
-    strncpy(node->value, text->value, sizeof(node->value) - 1);
-    node->value[sizeof(node->value) - 1] = '\0';
-    free_ast(text);
     return node;
 }
 
@@ -849,10 +707,21 @@ static ASTNode *parse_blockquote(Parser *p)
     return quote;
 }
 
-static void add_child(ASTNode *parent, ASTNode *child)
+void add_child(ASTNode *parent, ASTNode *child)
 {
     if (child)
         parent->children[parent->child_count++] = child;
+}
+
+void free_ast(ASTNode *node)
+{
+    if (!node)
+        return;
+
+    for (int i = 0; i < node->child_count; i++)
+        free_ast(node->children[i]);
+
+    free(node);
 }
 
 ASTNode *parse_document(Parser *p)
@@ -927,534 +796,4 @@ ASTNode *parse_paragraph(Parser *p)
 ASTNode *parse_list(Parser *p)
 {
     return parse_list_at(p, 0);
-}
-
-void parse_inline_until_newline(Parser *p, ASTNode *parent)
-{
-    while (peek(p)->type != TOK_NEWLINE && peek(p)->type != TOK_EOF)
-        parse_inline(p, parent);
-}
-
-static int is_emphasis_token(int type)
-{
-    return type == TOK_STAR ||
-           type == TOK_DOUBLE_STAR ||
-           type == TOK_TRIPLE_STAR ||
-           type == TOK_UNDERSCORE ||
-           type == TOK_DOUBLE_UNDERSCORE ||
-           type == TOK_TRIPLE_UNDERSCORE;
-}
-
-static NodeType node_type_for_emphasis(int token_type)
-{
-    switch (token_type)
-    {
-    case TOK_TRIPLE_STAR:
-    case TOK_TRIPLE_UNDERSCORE:
-        return NODE_BOLD_ITALIC;
-    case TOK_DOUBLE_STAR:
-    case TOK_DOUBLE_UNDERSCORE:
-        return NODE_BOLD;
-    default:
-        return NODE_ITALIC;
-    }
-}
-
-static void free_ast(ASTNode *node)
-{
-    if (!node)
-        return;
-
-    for (int i = 0; i < node->child_count; i++)
-        free_ast(node->children[i]);
-
-    free(node);
-}
-
-static ASTNode *parse_emphasis(Parser *p, int open_type, NodeType node_type, int *valid)
-{
-    int start_pos = p->pos;
-    match(p, open_type);
-
-    ASTNode *node = create_node(node_type);
-
-    while (peek(p)->type != open_type &&
-           peek(p)->type != TOK_EOF &&
-           peek(p)->type != TOK_NEWLINE)
-    {
-        Token *t = peek(p);
-
-        if (is_emphasis_token(t->type))
-        {
-            int child_valid = 0;
-            ASTNode *child = parse_emphasis(p, t->type, node_type_for_emphasis(t->type), &child_valid);
-            if (!child_valid)
-            {
-                free_ast(node);
-                *valid = 0;
-                free_ast(child);
-                return make_raw_text_from_tokens(p, start_pos, p->pos, 0);
-            }
-            add_child(node, child);
-            continue;
-        }
-
-        if (t->type == TOK_TEXT)
-        {
-            ASTNode *text = parse_text(p);
-            if (text)
-                add_child(node, text);
-            continue;
-        }
-
-        Token *unknown = advance(p);
-        ASTNode *text = create_node(NODE_TEXT);
-        strcpy(text->value, unknown->value);
-        add_child(node, text);
-    }
-
-    if (!match(p, open_type))
-    {
-        free_ast(node);
-        *valid = 0;
-        return make_raw_text_from_tokens(p, start_pos, p->pos, 0);
-    }
-
-    *valid = 1;
-    return node;
-}
-
-void parse_inline(Parser *p, ASTNode *parent)
-{
-    Token *t = peek(p);
-
-    if (t->type == TOK_BANG && p->pos + 1 < p->tokens->count &&
-        p->tokens->tokens[p->pos + 1].type == TOK_LBRACKET)
-    {
-        ASTNode *node = parse_image(p);
-        if (node)
-        {
-            add_child(parent, node);
-            return;
-        }
-    }
-
-    if (t->type == TOK_LBRACKET)
-    {
-        ASTNode *node = parse_link(p);
-        if (node)
-        {
-            add_child(parent, node);
-            return;
-        }
-    }
-
-    if (t->type == TOK_BACKTICK)
-    {
-        ASTNode *node = parse_inline_code(p);
-        add_child(parent, node);
-        return;
-    }
-
-    if (t->type == TOK_DOLLAR)
-    {
-        ASTNode *node = parse_math_inline(p, TOK_DOLLAR);
-        add_child(parent, node);
-        return;
-    }
-
-    if (is_emphasis_token(t->type))
-    {
-        int valid = 0;
-        ASTNode *node = parse_emphasis(p, t->type, node_type_for_emphasis(t->type), &valid);
-        add_child(parent, node);
-        return;
-    }
-
-    if (t->type == TOK_TEXT)
-    {
-        ASTNode *text = parse_text(p);
-        if (text)
-            add_child(parent, text);
-        return;
-    }
-
-    // fallback - consume unknown tokens as TEXT
-    Token *unknown = advance(p);
-    ASTNode *node = create_node(NODE_TEXT);
-    strcpy(node->value, unknown->value);
-    add_child(parent, node);
-}
-
-ASTNode *parse_text(Parser *p)
-{
-    Token *t = advance(p);
-    ASTNode *node = create_node(NODE_TEXT);
-    strcpy(node->value, t->value);
-    return node;
-}
-
-ASTNode *parse_bold(Parser *p)
-{
-    int valid = 0;
-    ASTNode *node = parse_emphasis(p, TOK_DOUBLE_STAR, NODE_BOLD, &valid);
-    if (!valid)
-        return node;
-    return node;
-}
-
-static void escape_latex(const char *text, FILE *out)
-{
-    for (int i = 0; text[i]; i++)
-    {
-        switch (text[i])
-        {
-        case '\\':
-            fputs("\\textbackslash{}", out);
-            break;
-        case '{':
-            fputs("\\{", out);
-            break;
-        case '}':
-            fputs("\\}", out);
-            break;
-        case '#':
-            fputs("\\#", out);
-            break;
-        case '$':
-            fputs("\\$", out);
-            break;
-        case '%':
-            fputs("\\%", out);
-            break;
-        case '&':
-            fputs("\\&", out);
-            break;
-        case '_':
-            fputs("\\_", out);
-            break;
-        case '^':
-            fputs("\\^{}", out);
-            break;
-        case '~':
-            fputs("\\~{}", out);
-            break;
-        default:
-            fputc(text[i], out);
-            break;
-        }
-    }
-}
-
-static void emit_inline(ASTNode *node, FILE *out)
-{
-    if (!node)
-        return;
-
-    switch (node->type)
-    {
-    case NODE_TEXT:
-        escape_latex(node->value, out);
-        break;
-
-    case NODE_ITALIC:
-        fputs("\\emph{", out);
-        for (int i = 0; i < node->child_count; i++)
-            emit_inline(node->children[i], out);
-        fputs("}", out);
-        break;
-
-    case NODE_BOLD:
-        fputs("\\textbf{", out);
-        for (int i = 0; i < node->child_count; i++)
-            emit_inline(node->children[i], out);
-        fputs("}", out);
-        break;
-
-    case NODE_BOLD_ITALIC:
-        fputs("\\textbf{\\emph{", out);
-        for (int i = 0; i < node->child_count; i++)
-            emit_inline(node->children[i], out);
-        fputs("}}", out);
-        break;
-
-    case NODE_CODE_INLINE:
-        fputs("\\texttt{", out);
-        escape_latex(node->value, out);
-        fputs("}", out);
-        break;
-
-    case NODE_LINK:
-        fprintf(out, "\\href{");
-        escape_latex(node->value, out);
-        fputs("}{", out);
-        for (int i = 0; i < node->child_count; i++)
-            emit_inline(node->children[i], out);
-        fputs("}", out);
-        break;
-
-    case NODE_IMAGE:
-        fputs("\\includegraphics[height=1.5em]{", out);
-        escape_latex(node->value, out);
-        fputs("}", out);
-        if (node->child_count > 0)
-        {
-            fputs("\\textit{", out);
-            for (int i = 0; i < node->child_count; i++)
-                emit_inline(node->children[i], out);
-            fputs("}", out);
-        }
-        break;
-
-    case NODE_MATH_INLINE:
-        fputs("$", out);
-        fputs(node->value, out);
-        fputs("$", out);
-        break;
-
-    case NODE_MATH_BLOCK:
-        fputs("\\[\n", out);
-        for (int i = 0; i < node->child_count; i++)
-        {
-            if (node->children[i]->type == NODE_TEXT)
-                fputs(node->children[i]->value, out);
-            if (i < node->child_count - 1)
-                fputs("\n", out);
-        }
-        fputs("\n\\]", out);
-        break;
-
-    default:
-        for (int i = 0; i < node->child_count; i++)
-            emit_inline(node->children[i], out);
-        break;
-    }
-}
-
-static void emit_block(ASTNode *node, FILE *out)
-{
-    if (!node)
-        return;
-
-    switch (node->type)
-    {
-    case NODE_DOCUMENT:
-        fputs("\\documentclass{article}\n", out);
-        fputs("\\usepackage[utf8]{inputenc}\n", out);
-        fputs("\\usepackage[T1]{fontenc}\n", out);
-        fputs("\\usepackage{lmodern}\n", out);
-        fputs("\\usepackage{hyperref}\n", out);
-        fputs("\\usepackage{graphicx}\n", out);
-        fputs("\\setlength{\\parindent}{0pt}\n", out);
-        fputs("\\setlength{\\parskip}{0.8\\baselineskip}\n\n", out);
-        fputs("\\begin{document}\n\n", out);
-
-        for (int i = 0; i < node->child_count; i++)
-            emit_block(node->children[i], out);
-
-        fputs("\\end{document}\n", out);
-        break;
-
-    case NODE_HEADING:
-    {
-        const char *cmd;
-        if (node->level == 1)
-            cmd = "section";
-        else if (node->level == 2)
-            cmd = "subsection";
-        else if (node->level == 3)
-            cmd = "subsubsection";
-        else if (node->level == 4)
-            cmd = "paragraph";
-        else
-            cmd = "subparagraph";
-
-        fprintf(out, "\\%s{", cmd);
-        for (int i = 0; i < node->child_count; i++)
-            emit_inline(node->children[i], out);
-        fputs("}\n\n", out);
-        break;
-    }
-
-    case NODE_PARAGRAPH:
-        // fputs("\\noindent ", out);
-        for (int i = 0; i < node->child_count; i++)
-            emit_inline(node->children[i], out);
-        fputs("\n\n", out);
-        break;
-
-    case NODE_BLOCKQUOTE:
-        fputs("\\begin{quote}\n", out);
-        for (int i = 0; i < node->child_count; i++)
-            emit_block(node->children[i], out);
-        fputs("\\end{quote}\n\n", out);
-        break;
-
-    case NODE_CODE_BLOCK:
-        fputs("\\begin{verbatim}\n", out);
-        for (int i = 0; i < node->child_count; i++)
-        {
-            ASTNode *line = node->children[i];
-            if (line->type == NODE_TEXT)
-                fputs(line->value, out);
-            fputs("\n", out);
-        }
-        fputs("\\end{verbatim}\n\n", out);
-        break;
-
-    case NODE_LIST:
-        if (node->ordered)
-            fputs("\\begin{enumerate}\n", out);
-        else
-            fputs("\\begin{itemize}\n", out);
-
-        for (int i = 0; i < node->child_count; i++)
-            emit_block(node->children[i], out);
-
-        if (node->ordered)
-            fputs("\\end{enumerate}\n\n", out);
-        else
-            fputs("\\end{itemize}\n\n", out);
-        break;
-
-    case NODE_TABLE:
-    {
-        const char *align = node->value;
-        int cols = strlen(align);
-
-        if (cols == 0 && node->child_count > 0)
-            cols = node->children[0]->child_count;
-
-        if (cols == 0)
-            cols = 1;
-
-        fputs("\\begin{tabular}{", out);
-        if (strlen(align) > 0)
-            fputs(align, out);
-        else
-            for (int i = 0; i < cols; i++)
-                fputc('l', out);
-        fputs("}\n", out);
-
-        if (node->child_count > 0)
-            fputs("\\hline\n", out);
-
-        for (int i = 0; i < node->child_count; i++)
-        {
-            ASTNode *row = node->children[i];
-            for (int j = 0; j < row->child_count; j++)
-            {
-                if (j > 0)
-                    fputs(" & ", out);
-                ASTNode *cell = row->children[j];
-                for (int k = 0; k < cell->child_count; k++)
-                    emit_inline(cell->children[k], out);
-            }
-            fputs(" \\\\\n", out);
-            if (i == 0)
-                fputs("\\hline\n", out);
-        }
-
-        fputs("\\hline\n", out);
-        fputs("\\end{tabular}\n\n", out);
-    }
-    break;
-
-    case NODE_MATH_BLOCK:
-        fputs("\\[\n", out);
-        for (int i = 0; i < node->child_count; i++)
-        {
-            if (node->children[i]->type == NODE_TEXT)
-                fputs(node->children[i]->value, out);
-            if (i < node->child_count - 1)
-                fputs("\n", out);
-        }
-        fputs("\n\\]\n\n", out);
-        break;
-
-    default:
-        for (int i = 0; i < node->child_count; i++)
-            emit_block(node->children[i], out);
-        break;
-    }
-}
-
-void generate_latex(ASTNode *root, FILE *out)
-{
-    emit_block(root, out);
-}
-
-void print_ast(ASTNode *node, int indent)
-{
-    for (int i = 0; i < indent; i++)
-        printf("  ");
-
-    switch (node->type)
-    {
-    case NODE_DOCUMENT:
-        printf("DOCUMENT\n");
-        break;
-    case NODE_HEADING:
-        printf("HEADING (level=%d)\n", node->level);
-        break;
-    case NODE_PARAGRAPH:
-        printf("PARAGRAPH\n");
-        break;
-    case NODE_TEXT:
-        printf("TEXT: %s\n", node->value);
-        break;
-    case NODE_ITALIC:
-        printf("ITALIC\n");
-        break;
-    case NODE_BOLD:
-        printf("BOLD\n");
-        break;
-    case NODE_BOLD_ITALIC:
-        printf("BOLD_ITALIC\n");
-        break;
-    case NODE_LIST:
-        printf("LIST\n");
-        break;
-    case NODE_TABLE:
-        printf("TABLE\n");
-        break;
-    case NODE_TABLE_ROW:
-        printf("TABLE_ROW\n");
-        break;
-    case NODE_TABLE_CELL:
-        printf("TABLE_CELL\n");
-        break;
-    case NODE_ITEM:
-        printf("ITEM\n");
-        break;
-    case NODE_CODE_BLOCK:
-        printf("CODE_BLOCK\n");
-        break;
-    case NODE_CODE_INLINE:
-        printf("CODE_INLINE: %s\n", node->value);
-        break;
-    case NODE_LINK:
-        printf("LINK (%s)\n", node->value);
-        break;
-    case NODE_IMAGE:
-        printf("IMAGE (%s)\n", node->value);
-        break;
-    case NODE_BLOCKQUOTE:
-        printf("BLOCKQUOTE\n");
-        break;
-    case NODE_MATH_INLINE:
-        printf("MATH_INLINE: %s\n", node->value);
-        break;
-    case NODE_MATH_BLOCK:
-        printf("MATH_BLOCK\n");
-        break;
-    default:
-        printf("UNKNOWN\n");
-        break;
-    }
-
-    for (int i = 0; i < node->child_count; i++)
-    {
-        print_ast(node->children[i], indent + 1);
-    }
 }

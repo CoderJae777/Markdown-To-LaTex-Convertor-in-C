@@ -1,0 +1,77 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.8\baselineskip}
+
+\begin{document}
+
+\section{ Emit Stress Demo}
+
+This file is intended to exercise output generation paths.
+
+\subsection{ Lists}
+
+\begin{itemize}
+\item  plain item
+\item  item with \textbf{bold} and \emph{italic}
+\item  item with nested list:
+\begin{itemize}
+\item  nested plain
+\item  nested \texttt{inline code}
+\end{itemize}
+
+
+\item  item with nested code block:
+\begin{verbatim}
+  int main(void) {
+      return 0;
+  }
+  
+\end{verbatim}
+
+
+\end{itemize}
+
+\subsection{ Table}
+
+\begin{tabular}{lcr}
+\hline
+ Name  &  Role  &  Notes  \\
+\hline
+ Alice  &  Dev  &  Writes parser  \\
+ Bob  &  QA  &  Checks output  \\
+\hline
+\end{tabular}
+
+\subsection{ Links And Images}
+
+Here is a \href{https://example.com}{reference link} and an image:
+
+\includegraphics[height=1.5em]{sample.png}\textit{sample alt text}
+
+\subsection{ Blockquote}
+
+\begin{quote}
+ quoted line one
+
+ quoted line two with \textbf{bold}
+
+\end{quote}
+
+\subsection{ Math}
+
+Inline math: $x + y = z$
+
+\[
+E = mc^2
+\]
+
+\subsection{ Final Paragraph}
+
+Special LaTeX characters should be escaped here: \# \$ \% \& \_ \{ \} \~{} \^{}
+
+\end{document}

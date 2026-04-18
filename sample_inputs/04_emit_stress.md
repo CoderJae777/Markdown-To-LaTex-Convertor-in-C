@@ -1,6 +1,7 @@
 # Emit Stress Demo
 
 This file is intended to exercise output generation paths.
+\f
 
 ## Lists
 

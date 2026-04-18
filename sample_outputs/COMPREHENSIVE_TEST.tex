@@ -1,0 +1,1054 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.8\baselineskip}
+
+\begin{document}
+
+\section{ Comprehensive Markdown Converter Test Suite}
+
+This document systematically tests all features of the Markdown-to-LaTeX converter, organized by feature type with "Should Work" and "Shouldn't Work" subsections.
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 1. Headings}
+
+\subsubsection{ 1.1 Should Work}
+
+\section{ Heading Level 1}
+
+\subsection{ Heading Level 2}
+
+\subsubsection{ Heading Level 3}
+
+\paragraph{ Heading Level 4}
+
+\subparagraph{ Heading Level 5}
+
+\subparagraph{ Heading Level 6}
+
+Multiple headings in sequence:
+
+\section{ First Section}
+
+\subsection{ Subsection 1}
+
+\subsubsection{ Sub-subsection 1}
+
+\subsection{ Subsection 2}
+
+\section{ Second Section}
+
+Headings with inline formatting:
+
+\subsection{ Section with \textbf{bold} title}
+
+\subsubsection{ Section with \emph{italic} title}
+
+\paragraph{ Section with \texttt{code} in title}
+
+\subsubsection{ 1.2 Shouldn't Work}
+
+\subparagraph{ Seven hashes (too many levels)}
+
+\section{ Heading with no space after hash\#}
+
+\section{ Heading at end of line \#}
+
+Heading without hash prefix
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 2. Inline Text Formatting}
+
+\subsubsection{ 2.1 Should Work}
+
+\textbf{Bold text} using double asterisks
+
+\textbf{Bold text} using double underscores
+
+\emph{Italic text} using single asterisk
+
+\emph{Italic text} using single underscore
+
+\textbf{\emph{Bold and italic}} using triple asterisks
+
+\textbf{\emph{Bold and italic}} using triple underscores
+
+\textbf{Nested bold with \emph{italic inside} bold}
+
+\emph{Nested italic with \textbf{bold inside} italic}
+
+\textbf{\emph{Triple nested \textbf{deep} bold}}
+
+Bold at \textbf{start} of sentence
+
+Sentence ending with \textbf{bold} here.
+
+Multiple \textbf{bold} words \textbf{in} one line.
+
+Multiple \emph{italic} words \emph{in} one line.
+
+Mix of \textbf{bold}, \emph{italic}, \textbf{\emph{both}}, and normal text.
+
+Text with \emph{asterisk and \textbf{nested bold} inside}.
+
+\subsubsection{ 2.2 Shouldn't Work}
+
+**Bold without closing asterisk
+
+*Italic without closing asterisk
+
+\textbf{ }Empty bold markers
+
+\emph{ }Empty italic markers
+
+**Escaped asterisks (if not supported)
+
+**Bold *without proper nesting** and*
+
+*Italic **without proper nesting* and**
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 3. Code}
+
+\subsubsection{ 3.1 Should Work}
+
+Inline \texttt{code} in text
+
+\texttt{Code with special chars: \$\#\%\&\_}
+
+\texttt{Multiple} pieces \texttt{of inline code}
+
+\textbf{Bold with `inline code` inside}
+
+\emph{Italic with `inline code` inside}
+
+\begin{verbatim}
+Plain code block
+line 2
+line 3
+\end{verbatim}
+
+\begin{verbatim}
+/* C code block */
+#include <stdio.h>
+int main() {
+    printf("Hello, World!\n");
+    return 0;
+}
+\end{verbatim}
+
+\begin{verbatim}
+# Python code block
+def greet(name):
+    return f"Hello, {name}"
+print(greet("World"))
+\end{verbatim}
+
+\begin{verbatim}
+Code with **markdown symbols** that should be literal
+Code with *asterisks* and _underscores_
+\end{verbatim}
+
+\subsubsection{ 3.2 Shouldn't Work}
+
+`Unclosed inline code
+
+``Double backtick code`` (if not supported)
+
+\begin{verbatim}
+Unclosed code block
+
+No closing ticks
+
+Triple backtick inside code block:
+\end{verbatim}
+
+nested```
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 4. Lists}
+
+\subsubsection{ 4.1 Unordered Lists Should Work}
+
+\begin{itemize}
+\item  Item one
+\item  Item two
+\item  Item three
+\end{itemize}
+
+\begin{itemize}
+\item  Item with \textbf{bold}
+\item  Item with \emph{italic}
+\item  Item with \texttt{code}
+\end{itemize}
+
+\begin{itemize}
+\item  First item
+\item  Second item
+\begin{itemize}
+\item  Nested item 1
+\item  Nested item 2
+\begin{itemize}
+\item  Deeply nested
+\item  More deeply nested
+\end{itemize}
+
+
+\item  Back to second level
+\end{itemize}
+
+
+\item  Third item
+\end{itemize}
+
+\begin{itemize}
+\item  Item with multiple \textbf{bold}, \emph{italic}, and \texttt{code} inline
+\end{itemize}
+
+\subsubsection{ 4.2 Ordered Lists Should Work}
+
+\begin{enumerate}
+\item  First item
+\item  Second item
+\item  Third item
+\end{enumerate}
+
+\begin{enumerate}
+\item  Item with \textbf{bold}
+\item  Item with \emph{italic}
+\item  Item with \texttt{code}
+\end{enumerate}
+
+\begin{enumerate}
+\item  First step
+\item  Second step
+\begin{enumerate}
+\item  Sub-step 1
+\item  Sub-step 2
+\begin{enumerate}
+\item  Sub-sub-step 1
+\item  Sub-sub-step 2
+\end{enumerate}
+
+
+\item  Sub-step 3
+\end{enumerate}
+
+
+\item  Third step
+\end{enumerate}
+
+\subsubsection{ 4.3 Mixed Lists Should Work}
+
+\begin{itemize}
+\item  Unordered item 1
+\item  Unordered item 2
+\begin{enumerate}
+\item  Ordered sub-item 1
+\item  Ordered sub-item 2
+\begin{itemize}
+\item  Unordered sub-sub-item
+\item  Another sub-sub-item
+\end{itemize}
+
+
+\item  Ordered sub-item 3
+\end{enumerate}
+
+
+\item  Unordered item 3
+\end{itemize}
+
+\begin{enumerate}
+\item  Ordered item 1
+\begin{itemize}
+\item  Unordered sub-item 1
+\item  Unordered sub-item 2
+\end{itemize}
+
+
+\item  Ordered item 2
+\end{enumerate}
+
+\subsubsection{ 4.4 Lists Shouldn't Work}
+
+\begin{itemize}
+\item  Item without proper indentation for nesting (only 1-2 spaces)
+\begin{itemize}
+\item  This might not nest correctly
+\end{itemize}
+
+
+\end{itemize}
+
+Paragraph breaks in middle
+
+\begin{itemize}
+\item  Item 1
+\end{itemize}
+
+\begin{itemize}
+\item  Item 2
+\end{itemize}
+
+List starting with wrong marker
+
+* Item (asterisk instead of dash)
+
++ Item (plus instead of dash)
+
+\begin{enumerate}
+\item  Zero-indexed ordered list (non-standard)
+\item 1. Negative indexed list
+\end{enumerate}
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 5. Blockquotes}
+
+\subsubsection{ 5.1 Should Work}
+
+\begin{quote}
+ This is a blockquote
+
+\end{quote}
+
+\begin{quote}
+ This is a blockquote with \textbf{bold} and \emph{italic}
+
+\end{quote}
+
+\begin{quote}
+ Multi-line blockquote
+
+ Line 2
+
+ Line 3
+
+\end{quote}
+
+\begin{quote}
+ Blockquote with \texttt{inline code}
+
+\end{quote}
+
+\begin{quote}
+ Nested idea
+
+> Inner blockquote
+
+> Still inner
+
+ Back to outer
+
+\end{quote}
+
+\begin{quote}
+- List inside blockquote
+
+- Item 2
+
+- Item 3
+
+\end{quote}
+
+\begin{quote}
+ 1. Ordered list inside blockquote
+
+ 2. Item 2
+
+\end{quote}
+
+\begin{quote}
+\# Heading in blockquote
+
+\end{quote}
+
+\subsubsection{ 5.2 Shouldn't Work}
+
+\begin{quote}
+No space after angle bracket (might still work)
+
+\end{quote}
+
+Blockquote after paragraph
+
+\begin{quote}
+ Quote without blank line
+
+\end{quote}
+
+\begin{quote}
+ Unclosed blockquote
+
+\end{quote}
+
+Next line (should this be indented?)
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 6. Links and Images}
+
+\subsubsection{ 6.1 Links Should Work}
+
+\href{https://example.com}{Simple link}
+
+\href{https://example.com}{Link with \textbf{bold} text}
+
+\href{https://example.com/page}{Link with \emph{italic} text}
+
+\href{https://example.com/code}{Link with \texttt{code} inside}
+
+Multiple \href{https://example1.com}{link one} and \href{https://example2.com}{link two} in one line.
+
+\href{./file.md}{Link to local file}
+
+\href{https://example.com/path?q=1\&t=2\#section}{Link with special chars}
+
+\subsubsection{ 6.2 Images Should Work}
+
+\includegraphics[height=1.5em]{./images/photo.png}\textit{Simple image}
+
+\includegraphics[height=1.5em]{./images/diagram.png}\textit{Image with alt text}
+
+Multiple images: \includegraphics[height=1.5em]{./img1.png}\textit{img1} and \includegraphics[height=1.5em]{./img2.png}\textit{img2}
+
+\subsubsection{ 6.3 Links and Images Shouldn't Work}
+
+\href{https://example.com (missing closing bracket}{Unclosed link text}
+
+\href{no-url}{Link without URL}
+
+[Link with wrong bracket][https://example.com]
+
+\includegraphics[height=1.5em]{./image.png\textbackslash{}n\textbackslash{}nBare URL: https://example.com (no link syntax}\textit{Unclosed image alt text}
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 7. Code Blocks (Fenced)}
+
+\subsubsection{ 7.1 Should Work}
+
+\begin{verbatim}
+// JavaScript code
+const x = 42;
+console.log(`The answer is ${x}`);
+\end{verbatim}
+
+\begin{verbatim}
+# Ruby code
+def factorial(n)
+  n <= 1 ? 1 : n * factorial(n - 1)
+end
+\end{verbatim}
+
+\begin{verbatim}
+#!/bin/bash
+echo "Hello from bash"
+for i in {1..5}; do
+  echo "Number: $i"
+done
+\end{verbatim}
+
+\begin{verbatim}
+No language specified
+Just plain text
+Can contain anything
+\end{verbatim}
+
+\subsubsection{ 7.2 Code Blocks Shouldn't Work}
+
+`` Double backtick open (should use triple)
+
+\begin{verbatim}
+Unclosed code fence
+No closing fence
+
+Text continues here
+
+\end{verbatim}
+
+Extra backticks on close
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 8. Math}
+
+\subsubsection{ 8.1 Inline Math Should Work}
+
+The equation $x^2 + y^2 = z^2$ is Pythagorean theorem.
+
+Euler's identity: $e^{i\pi} + 1 = 0$
+
+Quadratic formula: $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$
+
+Greek letters: $\alpha + \beta = \gamma$
+
+Matrix notation: $\begin{pmatrix} a & b \ c & d \end{pmatrix}$
+
+Multiple equations in one line: $a + b$ and $c * d$ and $e / f$
+
+\subsubsection{ 8.2 Block Math Should Work}
+
+\[
+x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+\]
+
+\[
+e^{i\pi} + 1 = 0
+\]
+
+\[
+\sum_{i=1}^{n} i = \frac{n(n+1)}{2}
+\]
+
+\[
+\int_{0}^{\infty} e^{-x^2} dx = \frac{\sqrt{\pi}}{2}
+\]
+
+\[
+\begin{align}
+a &= b + c \
+d &= e + f
+\end{align}
+\]
+
+\subsubsection{ 8.3 Math Shouldn't Work}
+
+\$Unclosed inline math
+
+Unclosed inline math\$
+
+\[
+
+\]
+
+Unclosed block math
+
+Inline math with newline: \$x +
+
+y\$ (broken across lines)
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 9. Tables}
+
+\subsubsection{ 9.1 Simple Tables Should Work}
+
+\begin{tabular}{lll}
+\hline
+ Name  &  Age  &  City  \\
+\hline
+ Alice  &  30  &  Singapore  \\
+ Bob  &  25  &  Tokyo  \\
+ Charlie  &  35  &  London  \\
+\hline
+\end{tabular}
+
+\subsubsection{ 9.2 Tables with Alignment Should Work}
+
+\begin{tabular}{lcr}
+\hline
+ Left  &  Center  &  Right  \\
+\hline
+ L1  &  C1  &  R1  \\
+ L2  &  C2  &  R2  \\
+\hline
+\end{tabular}
+
+\subsubsection{ 9.3 Tables with Formatting Should Work}
+
+\begin{tabular}{lll}
+\hline
+ Feature  &  Supported  &  Notes  \\
+\hline
+ \textbf{Bold}  &  Yes  &  **text**  \\
+ \emph{Italic}  &  Yes  &  *text*  \\
+ \texttt{Code}  &  Yes  &  `text`  \\
+ \href{https://example.com}{Links}  &  Yes  &  \href{url}{text}  \\
+ Math  &  Partial  &  $x^2$  \\
+\hline
+\end{tabular}
+
+\subsubsection{ 9.4 Complex Table Should Work}
+
+\begin{tabular}{lll}
+\hline
+ Complex  &  Example  &  Description  \\
+\hline
+ With \textbf{bold}, \emph{italic}, and \texttt{code}  &  Yes  &  All inline formatting  \\
+ With $math$ inside  &  Yes  &  $x^2 + y^2$  \\
+ Multi-word cells  &  Yes  &  This cell has multiple words  \\
+\hline
+\end{tabular}
+
+\subsubsection{ 9.5 Tables Shouldn't Work}
+
+| Missing closing pipe
+
+\begin{tabular}{ll}
+\hline
+ Col1  &  Col2  \\
+\hline
+\hline
+\end{tabular}
+
+Separator with wrong format:
+
+| Col1 | Col2 |
+
+| ---- | ---- |  (extra spaces)
+
+Table without separator:
+
+| Col1 | Col2 |
+
+| A1 | A2 |
+
+\begin{tabular}{ll}
+\hline
+ Uneven columns  \\
+\hline
+ Data  &  Extra  \\
+\hline
+\end{tabular}
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 10. Paragraphs and Spacing}
+
+\subsubsection{ 10.1 Should Work}
+
+This is a paragraph.
+
+This is a new paragraph (blank line above).
+
+This paragraph
+
+continues on multiple lines
+
+but is still one paragraph.
+
+Paragraph with \textbf{bold}, \emph{italic}, \texttt{code}, and \href{https://example.com}{link}.
+
+Paragraph ending with sentence. Another sentence follows.
+
+\subsubsection{ 10.2 Spacing Behavior}
+
+Paragraph 1.
+
+Paragraph 2 (one blank line above).
+
+Paragraph 3 (one blank line above).
+
+Paragraph 4 (multiple blank lines above - behavior may vary).
+
+\subsubsection{ 10.3 Edge Cases}
+
+Single word paragraph.
+
+Paragraph with single punctuation.
+
+Paragraph   with   multiple   spaces   (collapse to single spaces).
+
+Paragraph\textbackslash{}nwith escaped newline (may not work as line break).
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 11. Special Characters and Escaping}
+
+\subsubsection{ 11.1 Should Work (Basic special chars)}
+
+Price is \$50.
+
+Discount is 10\%.
+
+Range: 1 < x < 10.
+
+Answer: x > 0.
+
+Use C \& C++ for programming.
+
+Text with underscore\emph{in}middle.
+
+Text with dash-in-middle.
+
+\subsubsection{ 11.2 Escaped Characters (May Not Work)}
+
+This is *not italic*.
+
+This is **not bold***.
+
+This is [not a link](url).
+
+This is \$not math\$.
+
+Escaped underscore: \_text\_.
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 12. Combinations and Complex Structures}
+
+\subsubsection{ 12.1 Heading with Code and Math}
+
+\subsection{ Using $\LaTeX$ and \texttt{code} Together}
+
+Inline code \texttt{printf("\%d", x)} with math $\sum x$.
+
+\subsubsection{ 12.2 List with Multiple Formatting}
+
+\begin{itemize}
+\item  Item with \textbf{bold} and \emph{italic}
+\item  Item with \texttt{code} and $x^2$
+\item  Item with \href{https://example.com}{link}
+\item  Item with everything: \textbf{bold}, \emph{italic}, \texttt{code}, $y = mx + b$, \href{https://example.com}{link}
+\end{itemize}
+
+\subsubsection{ 12.3 Blockquote with Formatting}
+
+\begin{quote}
+ This blockquote has \textbf{bold}, \emph{italic}, and \texttt{code}.
+
+ It also has math: $E = mc^2$
+
+ And a \href{https://example.com}{link}.
+
+\end{quote}
+
+\subsubsection{ 12.4 Table in Complex Context}
+
+Complex table with mixed content:
+
+\begin{tabular}{lll}
+\hline
+ Type  &  Example  &  Rendered  \\
+\hline
+ \textbf{Bold}  &  \texttt{**text**}  &  \textbf{bold}  \\
+ \emph{Italic}  &  \texttt{*text*}  &  \emph{italic}  \\
+ Code  &  `` \texttt{text} ``  &  \texttt{code}  \\
+ Math  &  \texttt{\$x\^{}2\$}  &  $x^2$  \\
+ \href{https://example.com}{Link}  &  \texttt{[text](url)}  &  \href{https://example.com}{link}  \\
+\hline
+\end{tabular}
+
+\subsubsection{ 12.5 Nested Structures}
+
+\begin{enumerate}
+\item  Ordered item 1
+\begin{itemize}
+\item  Unordered subitem
+\item  Another unordered subitem
+\begin{verbatim}
+     code block inside nested list
+     
+\end{verbatim}
+
+
+\item  Back to unordered
+\end{itemize}
+
+
+\item  Ordered item 2
+\end{enumerate}
+
+\begin{quote}
+ Blockquote in list
+
+ Multi-line quote
+
+\end{quote}
+
+\begin{enumerate}
+\item  Ordered item 3
+\end{enumerate}
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 13. Stress Tests and Edge Cases}
+
+\subsubsection{ 13.1 Very Long Content}
+
+This is a very long paragraph that continues for many lines with multiple sentences to test how the converter handles lengthy text blocks without any special formatting or line breaks. It should all be treated as a single paragraph and should flow normally into the LaTeX output without issues. Line wrapping should be handled by the LaTeX compiler, not by the Markdown converter. This paragraph is intentionally long and repetitive to ensure that the converter doesn't have any issues with extended text.
+
+\subsubsection{ 13.2 Empty or Minimal Content}
+
+Empty list:
+
+\begin{itemize}
+\item 
+\end{itemize}
+
+Minimal paragraph:
+
+.
+
+Single character:
+
+x
+
+\subsubsection{ 13.3 Repeated Formatting}
+
+\textbf{bold} \textbf{bold} \textbf{bold}
+
+\emph{italic} \emph{italic} \emph{italic}
+
+\texttt{code} \texttt{code} \texttt{code}
+
+\subsubsection{ 13.4 Deeply Nested Lists}
+
+\begin{itemize}
+\item  Level 1
+\begin{itemize}
+\item  Level 2
+\begin{itemize}
+\item  Level 3
+\begin{itemize}
+\item  Level 4
+\begin{itemize}
+\item  Level 5
+\begin{itemize}
+\item  Level 6 (may hit depth limits)
+\end{itemize}
+
+
+\end{itemize}
+
+
+\end{itemize}
+
+
+\end{itemize}
+
+
+\end{itemize}
+
+
+\end{itemize}
+
+\begin{enumerate}
+\item  Level 1
+\begin{enumerate}
+\item  Level 2
+\begin{enumerate}
+\item  Level 3
+\begin{enumerate}
+\item  Level 4
+\begin{enumerate}
+\item  Level 5 (deeply nested)
+\end{enumerate}
+
+
+\end{enumerate}
+
+
+\end{enumerate}
+
+
+\end{enumerate}
+
+
+\end{enumerate}
+
+\subsubsection{ 13.5 Many Columns in Table}
+
+\begin{tabular}{llllllll}
+\hline
+ Col1  &  Col2  &  Col3  &  Col4  &  Col5  &  Col6  &  Col7  &  Col8  \\
+\hline
+ A  &  B  &  C  &  D  &  E  &  F  &  G  &  H  \\
+ 1  &  2  &  3  &  4  &  5  &  6  &  7  &  8  \\
+\hline
+\end{tabular}
+
+\subsubsection{ 13.6 Large Table}
+
+\begin{tabular}{llll}
+\hline
+ Row  &  Data1  &  Data2  &  Data3  \\
+\hline
+ 1  &  Value  &  Value  &  Value  \\
+ 2  &  Value  &  Value  &  Value  \\
+ 3  &  Value  &  Value  &  Value  \\
+ 4  &  Value  &  Value  &  Value  \\
+ 5  &  Value  &  Value  &  Value  \\
+ 10  &  Value  &  Value  &  Value  \\
+ 20  &  Value  &  Value  &  Value  \\
+\hline
+\end{tabular}
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 14. Unicode and Special Symbols}
+
+\subsubsection{ 14.1 Should Work (ASCII-safe content)}
+
+Copyright: (c)
+
+Registered: (r)
+
+Trademark: (tm)
+
+Degree: Celsius is 25°C
+
+Arrows: <- -> <-> =>
+
+\subsubsection{ 14.2 May Not Work (Unicode)}
+
+Mathematical symbols: ±, ×, ÷, ≈, ≠, ≤, ≥
+
+Greek text outside math: α, β, γ, δ, ε
+
+Other symbols: €, ¥, £, ©, ®, ™
+
+Emoji: 😀 ✓ ✗ ⚠ ℹ
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 15. Document Structure}
+
+\subsubsection{ 15.1 Typical Article Structure}
+
+\section{ Main Title}
+
+\subsection{ Introduction}
+
+This is the introduction section with some content.
+
+\subsection{ Background}
+
+Some background information here.
+
+\subsection{ Method}
+
+\begin{itemize}
+\item  Step 1: Do this
+\item  Step 2: Do that
+\begin{itemize}
+\item  Sub-step 2a
+\item  Sub-step 2b
+\end{itemize}
+
+
+\end{itemize}
+
+Code example:
+
+\begin{verbatim}
+example code
+\end{verbatim}
+
+\subsection{ Results}
+
+\begin{tabular}{ll}
+\hline
+ Metric  &  Value  \\
+\hline
+ Accuracy  &  95\%  \\
+ Precision  &  92\%  \\
+\hline
+\end{tabular}
+
+Math results: $R^2 = 0.98$
+
+\subsection{ Discussion}
+
+Discussion of findings.
+
+\subsection{ Conclusion}
+
+Final thoughts and conclusion.
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ 16. Known Limitations and Unsupported Features}
+
+\subsubsection{ 16.1 Unsupported Markdown Syntax}
+
+\begin{itemize}
+\item  Horizontal rules (----, ****, \_\_\_\_)
+\item  Strikethrough (\~{}\~{}text\~{}\~{})
+\item  Subscript and superscript (H\~{}2\~{}O, x\^{}2\^{})
+\item  Task lists (- [ ] Task, - [x] Done)
+\item  Footnotes ([\^{}1], [\^{}1]: Note text)
+\item  Definition lists (Term : Definition)
+\item  HTML blocks (<div>, <table> tags)
+\item  Raw HTML (<span style="color:red">text</span>)
+\end{itemize}
+
+\subsubsection{ 16.2 Limited or Partial Support}
+
+\begin{itemize}
+\item  Escaped characters (may not work as expected)
+\item  Nested formatting edge cases
+\item  Very deep list nesting (may have depth limits)
+\item  Unicode and emoji support
+\end{itemize}
+
+\subsubsection{ 16.3 Behavior That May Vary}
+
+\begin{itemize}
+\item  Multiple consecutive blank lines
+\item  Spaces inside formatting markers
+\item  Mixed tab and space indentation
+\item  Windows vs Unix line endings
+\end{itemize}
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+\subsection{ Summary}
+
+This comprehensive test file covers:
+
+\begin{itemize}
+\item  ✓ 15 main feature sections
+\item  ✓ \~{}100+ individual test cases
+\item  ✓ Both should-work and shouldn't-work scenarios
+\item  ✓ Edge cases and stress tests
+\item  ✓ Known limitations and unsupported features
+\end{itemize}
+
+\textbf{Use this to verify converter behavior comprehensively and identify any issues or edge cases that need attention.}
+
+\end{document}

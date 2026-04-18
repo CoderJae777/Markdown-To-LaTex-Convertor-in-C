@@ -70,6 +70,24 @@ static void flush_text(TokenList *list, char *buf, int *len, int line, int col)
     *len = 0; /*reset buffer*/
 }
 
+static int is_escapable_markdown_char(char c)
+{
+    return c == '#' ||
+           c == '*' ||
+           c == '_' ||
+           c == '`' ||
+           c == '[' ||
+           c == ']' ||
+           c == '(' ||
+           c == ')' ||
+           c == '!' ||
+           c == '$' ||
+           c == '>' ||
+           c == '-' ||
+           c == '|' ||
+           c == '\\';
+}
+
 /*
     Main lex function
     - takes in a raw text that is read
@@ -271,10 +289,21 @@ void lex(const char *src, TokenList *list)
         }
         else if (c == '\\')
         {
-            char unknown = (char)next;
-            push(list, TOK_TEXT, &unknown, line, col);
-            i += 1;
-            col += 2;
+            if (is_escapable_markdown_char(next))
+            {
+                char escaped[2];
+                escaped[0] = next;
+                escaped[1] = '\0';
+                push(list, TOK_TEXT, escaped, line, col);
+                i += 1;
+                col += 2;
+            }
+            else
+            {
+                if (text_len < MAX_TOKEN_VALUE - 1)
+                    text_buf[text_len++] = c;
+                col++;
+            }
         }
     }
 

@@ -115,7 +115,7 @@ This is *mixing **underscore bold** and **asterisk bold***
 
 This is \textbf{bold with `code \emph{inside} code` inside}
 
-This is \texttt{code with backtick `\textbackslash{}`  inside} (may break depending on parser)
+This is \texttt{code with backtick ` inside} (may break depending on parser)
 
 \subsection{ 3. Paragraphs}
 
@@ -257,7 +257,7 @@ line three of code block
 #include <stdio.h>
 
 int main(void) {
-    printf("Hello, world!n\n"");
+    printf("Hello, world!\n");
     return 0;
 }
 \end{verbatim}
@@ -286,22 +286,22 @@ print(greet("world"))
 
 The equation $x^2 + y^2 = z^2$ is Pythagoras theorem.
 
-Euler's identity is $e^{ip\pii} + 1 = 0$.
+Euler's identity is $e^{i\pi} + 1 = 0$.
 
-The quadratic formula is $x = f\frrac{-b p\pmm s\sqqrt{b^2 - 4ac}}{2a}$.
+The quadratic formula is $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$.
 
 \subsection{ 11. Block Math}
 
 \[
-x = f\frrac{-b p\pmm s\sqqrt{b^2 - 4ac}}{2a}
+x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
 \]
 
 \[
-s\suum_{i=1}^{n} i = f\frrac{n(n+1)}{2}
+\sum_{i=1}^{n} i = \frac{n(n+1)}{2}
 \]
 
 \[
-i\innt_{0}^{i\innfty} e^{-x^2} dx = f\frrac{s\sqqrt{p\pii}}{2}
+\int_{0}^{\infty} e^{-x^2} dx = \frac{\sqrt{\pi}}{2}
 \]
 
 \subsection{ 12. Tables}
@@ -329,9 +329,9 @@ i\innt_{0}^{i\innfty} e^{-x^2} dx = f\frrac{s\sqqrt{p\pii}}{2}
 \hline
  Feature       &  Supported  &  Notes               \\
 \hline
- \textbf{Bold}      &  Yes        &  \texttt{t\textbackslash{}teextbf\{\}}         \\
- \emph{Italic}      &  Yes        &  \texttt{t\textbackslash{}teextit\{\}}         \\
- \texttt{Code}        &  Yes        &  \texttt{t\textbackslash{}teexttt\{\}}         \\
+ \textbf{Bold}      &  Yes        &  \texttt{\textbackslash{}textbf\{\}}         \\
+ \emph{Italic}      &  Yes        &  \texttt{\textbackslash{}textit\{\}}         \\
+ \texttt{Code}        &  Yes        &  \texttt{\textbackslash{}texttt\{\}}         \\
  Tables        &  Yes        &  \texttt{tabular} env       \\
  Images        &  Partial    &  no size control     \\
 \hline

@@ -1,0 +1,426 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.8\baselineskip}
+
+\begin{document}
+
+\section{ Document Title}
+
+\subsection{ 1. Headings}
+
+\section{ Heading Level 1}
+
+\subsection{ Heading Level 2}
+
+\subsubsection{ Heading Level 3}
+
+\paragraph{ Heading Level 4}
+
+\subparagraph{ Heading Level 5}
+
+\subparagraph{ Heading Level 6}
+
+\subsection{ 2. Inline Formatting}
+
+This is \textbf{bold text} in a sentence.
+
+This is \emph{italic text} in a sentence.
+
+This is \textbf{\emph{bold and italic}} in a sentence.
+
+This is \texttt{inline code} in a sentence.
+
+This is \textbf{bold with \emph{nested italic} inside} it.
+
+This is \emph{italic with \textbf{nested bold} inside} it.
+
+This has \textbf{multiple} bold \textbf{words} in one line.
+
+This has \emph{multiple} italic \emph{words} in one line.
+
+This is **** (just four asterisks, should not render anything meaningful)
+
+This is \textbf{\emph{just bold+italic markers but no content}}
+
+This is **bold that never closes
+
+This is *italic that never closes
+
+This is ***bold and italic that never closes
+
+This is **bold with *italic inside but not closed properly**
+
+This is *italic with **bold inside but not closed properly*
+
+This is ***nested **bold inside italic*** (ambiguous nesting)
+
+This is **bold *italic **bold again*** back to italic* end**
+
+This is *italic **bold *italic again*** back to bold** end*
+
+This is \texttt{code with *asterisks* that should not render}
+
+This is \texttt{code with **bold markers** inside}
+
+This is \texttt{**everything inside code should stay literal**}
+
+This is \textbf{bold with `inline code` inside}
+
+This is \emph{italic with `inline code` inside}
+
+This is \textbf{\emph{bold italic with `code` inside}}
+
+This is \texttt{code with **bold and *italic* mixed** inside}
+
+This is \textbf{\emph{bold+italic with \emph{nested italic} inside}}
+
+This is \textbf{\emph{bold+italic with \textbf{nested bold} inside}}
+
+This is \textbf{bold with \textbf{\emph{triple nested}} markers inside}
+
+This is \emph{italic with \textbf{\emph{triple nested}} markers inside}
+
+This is \textbf{\emph{}}\textbf{too many asterisks\textbf{\emph{}}}
+
+This is \emph{ } spaced asterisks \emph{ } (should not render properly)
+
+This is \textbf{bold}and\textbf{bold} (no spaces between segments)
+
+This is \emph{italic}and\emph{italic} (no spaces)
+
+This is **bold *italic **deep nesting*** still bold**
+
+This is *italic **bold *deep nesting*** still italic*
+
+This is ***bold italic with mismatched **closures***
+
+This is **bold *italic*** (valid but tricky)
+
+This is \textbf{bold with \emph{underscore italic} inside}
+
+This is *italic with **bold inside***
+
+This is \textbf{bold using underscores}
+
+This is \textbf{\emph{bold italic using underscores}}
+
+This is **mixing *underscore italic* and *asterisk italic***
+
+This is *mixing **underscore bold** and **asterisk bold***
+
+This is \textbf{bold with `code \emph{inside} code` inside}
+
+This is \texttt{code with backtick `\textbackslash{}`  inside} (may break depending on parser)
+
+\subsection{ 3. Paragraphs}
+
+This is the first paragraph. It has multiple sentences. All on the same block of text with no blank line separating them.
+
+This is the second paragraph. A blank line above separates it from the first. Paragraphs are the most common block element in Markdown.
+
+This is a third paragraph. It comes after another blank line. Each paragraph becomes its own block node in the AST.
+
+\subsection{ 4. Unordered Lists}
+
+\begin{itemize}
+\item  Item one
+\item  Item two
+\item  Item three
+\end{itemize}
+
+\begin{itemize}
+\item  Item with \textbf{bold} text
+\item  Item with \emph{italic} text
+\item  Item with \texttt{inline code}
+\end{itemize}
+
+\begin{itemize}
+\item  Top level item A
+\begin{itemize}
+\item  Nested item A1
+\item  Nested item A2
+\begin{itemize}
+\item  Deeply nested item A2a
+\item  Deeply nested item A2b
+\end{itemize}
+
+
+\item  Nested item A3
+\end{itemize}
+
+
+\item  Top level item B
+\begin{itemize}
+\item  Nested item B1
+\end{itemize}
+
+
+\item  Top level item C
+\end{itemize}
+
+\subsection{ 5. Ordered Lists}
+
+\begin{enumerate}
+\item  First item
+\item  Second item
+\item  Third item
+\end{enumerate}
+
+\begin{enumerate}
+\item  First item with \textbf{bold}
+\item  Second item with \emph{italic}
+\item  Third item with \texttt{code}
+\end{enumerate}
+
+\begin{enumerate}
+\item  Top level step one
+\begin{enumerate}
+\item  Sub-step one
+\item  Sub-step two
+\begin{enumerate}
+\item  Sub-sub-step one
+\item  Sub-sub-step two
+\end{enumerate}
+
+
+\item  Sub-step three
+\end{enumerate}
+
+
+\item  Top level step two
+\item  Top level step three
+\end{enumerate}
+
+\subsection{ 6. Mixed Lists}
+
+\begin{itemize}
+\item  Unordered item one
+\item  Unordered item two
+\begin{enumerate}
+\item  Ordered sub-item one
+\item  Ordered sub-item two
+\end{enumerate}
+
+
+\item  Unordered item three
+\end{itemize}
+
+\subsection{ 7. Blockquotes}
+
+\begin{quote}
+ This is a simple blockquote.
+
+\end{quote}
+
+\begin{quote}
+ This is a blockquote with \textbf{bold} and \emph{italic} inside it.
+
+\end{quote}
+
+\begin{quote}
+ First line of a multi-line blockquote.
+
+ Second line of the same blockquote.
+
+ Third line of the same blockquote.
+
+\end{quote}
+
+\begin{quote}
+ Outer blockquote line one.
+
+ Outer blockquote line two.
+
+\end{quote}
+
+\subsection{ 8. Code}
+
+Inline code: \texttt{x = 5 + y}
+
+Inline code with symbols: \texttt{printf("\%s", "hello")}
+
+Inline code with backtick content: ``use \texttt{backtick} inside``
+
+\begin{verbatim}
+plain code block with no language
+line two of code block
+line three of code block
+\end{verbatim}
+
+\begin{verbatim}
+/* C code block */
+#include <stdio.h>
+
+int main(void) {
+    printf("Hello, world!n\n"");
+    return 0;
+}
+\end{verbatim}
+
+\begin{verbatim}
+# Python code block
+def greet(name):
+    return f"Hello, {name}"
+
+print(greet("world"))
+\end{verbatim}
+
+\subsection{ 9. Links and Images}
+
+\href{http://example.com}{Simple link}
+
+\href{http://example.com}{Link with \textbf{bold} label}
+
+\href{http://example.com/page}{Link with \emph{italic} label}
+
+\includegraphics[height=1.5em]{images/photo.png}\textit{Simple image}
+
+\includegraphics[height=1.5em]{images/diagram.png}\textit{Image with alt text}
+
+\subsection{ 10. Inline Math}
+
+The equation $x^2 + y^2 = z^2$ is Pythagoras theorem.
+
+Euler's identity is $e^{ip\pii} + 1 = 0$.
+
+The quadratic formula is $x = f\frrac{-b p\pmm s\sqqrt{b^2 - 4ac}}{2a}$.
+
+\subsection{ 11. Block Math}
+
+\[
+x = f\frrac{-b p\pmm s\sqqrt{b^2 - 4ac}}{2a}
+\]
+
+\[
+s\suum_{i=1}^{n} i = f\frrac{n(n+1)}{2}
+\]
+
+\[
+i\innt_{0}^{i\innfty} e^{-x^2} dx = f\frrac{s\sqqrt{p\pii}}{2}
+\]
+
+\subsection{ 12. Tables}
+
+\begin{tabular}{lll}
+\hline
+ Name     &  Age  &  City       \\
+\hline
+ Alice    &  30   &  Singapore  \\
+ Bob      &  25   &  Tokyo      \\
+ Charlie  &  35   &  London     \\
+\hline
+\end{tabular}
+
+\begin{tabular}{lcr}
+\hline
+ Left aligned  &  Center aligned  &  Right aligned  \\
+\hline
+ cell 1        &  cell 2          &  cell 3         \\
+ cell 4        &  cell 5          &  cell 6         \\
+\hline
+\end{tabular}
+
+\begin{tabular}{lll}
+\hline
+ Feature       &  Supported  &  Notes               \\
+\hline
+ \textbf{Bold}      &  Yes        &  \texttt{t\textbackslash{}teextbf\{\}}         \\
+ \emph{Italic}      &  Yes        &  \texttt{t\textbackslash{}teextit\{\}}         \\
+ \texttt{Code}        &  Yes        &  \texttt{t\textbackslash{}teexttt\{\}}         \\
+ Tables        &  Yes        &  \texttt{tabular} env       \\
+ Images        &  Partial    &  no size control     \\
+\hline
+\end{tabular}
+
+\subsection{ 13. Horizontal Rules}
+
+Above the rule.
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+Below the rule.
+
+Another paragraph.
+
+\begin{itemize}
+\item --
+\end{itemize}
+
+Another section after a rule.
+
+\subsection{ 14. Edge Cases}
+
+\subsubsection{ Empty formatting markers}
+
+A line with a lone star * in the middle.
+
+A line with a lone underscore \_ in the middle.
+
+A line with a lone backtick ` in the middle.
+
+\subsubsection{ Special characters in text}
+
+Price is \$50 and discount is 10\%.
+
+Use C \& C++ for systems programming.
+
+The range is 1 < x < 10.
+
+The answer is 42 > 0.
+
+\subsubsection{ Punctuation around formatting}
+
+\textbf{bold} at the start of a line.
+
+A sentence ending with \textbf{bold}.
+
+(\emph{italic inside parentheses})
+
+A comma after \textbf{bold}, then more text.
+
+A period after \emph{italic}.
+
+\subsubsection{ Consecutive formatting}
+
+\textbf{bold} \emph{italic} \texttt{code} in a row.
+
+\subsubsection{ Long paragraph}
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+
+\subsection{ 15. Combined Elements}
+
+\subsubsection{ A realistic section}
+
+The \textbf{lexer} is the first phase of a compiler. It reads a raw character stream and produces a flat list of \emph{tokens}. Each token has:
+
+\begin{itemize}
+\item  A \textbf{type} (e.g. \texttt{HASH}, \texttt{STAR}, \texttt{TEXT})
+\item  A \textbf{value} (the matched text)
+\item  A \textbf{line} and \textbf{column} for error reporting
+\end{itemize}
+
+The lexer does not understand structure. That is the job of the \textbf{parser}, which consumes the token stream and builds an \emph{Abstract Syntax Tree} (AST).
+
+For more details see the \href{http://example.com/arch}{compiler architecture}.
+
+The key formula driving our tokenizer complexity is $O(n)$ where $n$ is the number of input characters.
+
+\begin{tabular}{lll}
+\hline
+ Phase    &  Input        &  Output      \\
+\hline
+ Lexer    &  \texttt{char *}     &  \texttt{Token[]}   \\
+ Parser   &  \texttt{Token[]}    &  \texttt{Node *}    \\
+ Emitter  &  \texttt{Node *}     &  \texttt{char *}    \\
+\hline
+\end{tabular}
+
+\end{document}
